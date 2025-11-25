@@ -6,6 +6,14 @@ import type { Vehicle } from '../types/Types'
 import Navbar from './Navbar'
 import Footer from './Footer'
 
+// Import Redux hooks for authentication state
+import { useSelector } from 'react-redux';
+import type { RootState } from '../store/store';
+
+// Define the path to the car image for the faded background
+// NOTE: Make sure you have this image asset in your project, e.g., in `../assets/CarBackground.jpg`
+// Replace 'YourCarBackgroundImage.jpg' with the actual path or URL of your car image.
+const FEATURED_VEHICLES_BG = 'https://m.media-amazon.com/images/I/81uVQ3ZZwqL._AC_UF350,350_QL80_.jpg'
 
 const HomePage: React.FC = () => {
     const [searchParams, setSearchParams] = useState({
@@ -17,6 +25,9 @@ const HomePage: React.FC = () => {
         limit: 6,
         availability: true
     })
+
+    // Access Authentication State
+    const { isAuthenticated } = useSelector((state: RootState) => state.authSlice);
 
     const featuredVehicles = vehiclesData?.vehicles || []
 
@@ -71,99 +82,102 @@ const HomePage: React.FC = () => {
     return (
         <div className="min-h-screen bg-white">
             <Navbar/>
+            
             {/* Hero Section */}
-            {/* Hero Section */}
-<section 
-  className="relative py-20 text-white"
-  style={{
-    backgroundImage: 'url("https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80")',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat'
-  }}
->
-  {/* Dark overlay for better text readability */}
-  <div className="absolute inset-0 bg-black/50"></div>
-  
-  <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div>
-        <h1 className="text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-          Find Your Perfect 
-          <span className="text-orange-500"> Ride</span>
-        </h1>
-        <p className="text-xl text-white/90 mb-8 leading-relaxed">
-          Discover premium vehicles at unbeatable prices. From eco-friendly electric cars to luxury SUVs, 
-          we have the perfect ride for every journey.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Link 
-            to="/vehicles"
-            className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl text-center"
-          >
-            Browse All Vehicles
-          </Link>
-          <Link 
-            to="/register"
-            className="border-2 border-white text-white hover:bg-white hover:text-blue-900 px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1 text-center"
-          >
-            Create Account
-          </Link>
-        </div>
-      </div>
-      <div className="relative">
-        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-          <h3 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-            <Search size={24} />
-            Quick Search
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Pickup Location</label>
-              <select 
-                value={searchParams.location}
-                onChange={(e) => handleSearchChange('location', e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="">Select location</option>
-                {locations.map(location => (
-                  <option key={location} value={location}>{location}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Pickup Date</label>
-                <input 
-                  type="date"
-                  value={searchParams.pickupDate}
-                  onChange={(e) => handleSearchChange('pickupDate', e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Return Date</label>
-                <input 
-                  type="date"
-                  value={searchParams.returnDate}
-                  onChange={(e) => handleSearchChange('returnDate', e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-            </div>
-            <button 
-              onClick={handleQuickSearch}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+            <section 
+                className="relative py-20 text-white"
+                style={{
+                    backgroundImage: 'url("https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80")',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat'
+                }}
             >
-              <Search size={20} />
-              Search Vehicles
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+                {/* Dark overlay for better text readability */}
+                <div className="absolute inset-0 bg-black/50"></div>
+                
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div>
+                            <h1 className="text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+                                Find Your Perfect 
+                                <span className="text-orange-500"> Ride</span>
+                            </h1>
+                            <p className="text-xl text-white/90 mb-8 leading-relaxed">
+                                Discover premium vehicles at unbeatable prices. From eco-friendly electric cars to luxury SUVs, 
+                                we have the perfect ride for every journey.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <Link 
+                                    to="/vehicles"
+                                    className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl text-center"
+                                >
+                                    Browse All Vehicles
+                                </Link>
+                                {/* CONDITIONAL RENDERING: Hide Create Account button when logged in */}
+                                {!isAuthenticated && (
+                                    <Link 
+                                        to="/register"
+                                        className="border-2 border-white text-white hover:bg-white hover:text-blue-900 px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1 text-center"
+                                    >
+                                        Create Account
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+                        <div className="relative">
+                            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+                                <h3 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+                                    <Search size={24} />
+                                    Quick Search
+                                </h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Pickup Location</label>
+                                        <select 
+                                            value={searchParams.location}
+                                            onChange={(e) => handleSearchChange('location', e.target.value)}
+                                            className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        >
+                                            <option value="">Select location</option>
+                                            {locations.map(location => (
+                                                <option key={location} value={location}>{location}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Pickup Date</label>
+                                            <input 
+                                                type="date"
+                                                value={searchParams.pickupDate}
+                                                onChange={(e) => handleSearchChange('pickupDate', e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Return Date</label>
+                                            <input 
+                                                type="date"
+                                                value={searchParams.returnDate}
+                                                onChange={(e) => handleSearchChange('returnDate', e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={handleQuickSearch}
+                                        className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Search size={20} />
+                                        Search Vehicles
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             {/* Features Section */}
             <section className="py-16 bg-gray-50">
@@ -227,9 +241,22 @@ const HomePage: React.FC = () => {
                 </div>
             </section>
 
-            {/* Featured Vehicles */}
-            <section className="py-16 bg-gray-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Featured Vehicles - With Faded Background Image 🚗 */}
+            {/* Added relative, background-image styles, and an overlay */}
+            <section className="py-16 relative overflow-hidden"> 
+                {/* Faded Background Image Layer */}
+                <div 
+                    className="absolute inset-0 opacity-30 pointer-events-none" // opacity-10 for faint/faded effect
+                    style={{
+                        backgroundImage: `url('${FEATURED_VEHICLES_BG}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        filter: 'grayscale(100%) blur(2px)' // Optional: make it grayscale and slightly blurred for less distraction
+                    }}
+                ></div>
+
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10"> {/* z-10 ensures content is above background */}
                     <div className="flex justify-between items-center mb-12">
                         <div>
                             <h2 className="text-3xl lg:text-4xl font-bold text-blue-900 mb-4">
@@ -279,8 +306,8 @@ const HomePage: React.FC = () => {
                                                 'bg-purple-100 text-purple-800'
                                             }`}>
                                                 {vehicle.specification.fuel_type === 'Electric' ? 'Electric' :
-                                                 vehicle.specification.fuel_type === 'Hybrid' ? 'Hybrid' :
-                                                 vehicle.specification.transmission}
+                                                vehicle.specification.fuel_type === 'Hybrid' ? 'Hybrid' :
+                                                vehicle.specification.transmission}
                                             </span>
                                         </div>
                                         {vehicle.current_location && (
@@ -371,12 +398,15 @@ const HomePage: React.FC = () => {
                         Join thousands of satisfied customers who trust RentWheels for their transportation needs.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link 
-                            to="/register"
-                            className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl"
-                        >
-                            Create Account
-                        </Link>
+                        {/* CONDITIONAL RENDERING: Hide Create Account button when logged in */}
+                        {!isAuthenticated && (
+                            <Link 
+                                to="/register"
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl"
+                            >
+                                Create Account
+                            </Link>
+                        )}
                         <Link 
                             to="/contact"
                             className="border-2 border-white text-white hover:bg-white hover:text-blue-900 px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:-translate-y-1"

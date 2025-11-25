@@ -1,6 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { VehiclesResponse, VehicleQueryParams, Vehicle } from '../../types/Types'
-import { apiDomain } from '../../apiDomain/apiDomain'
 
 export const vehiclesApi = createApi({
     reducerPath: 'vehiclesApi',
@@ -20,23 +19,24 @@ export const vehiclesApi = createApi({
             query: (params) => {
                 const queryParams = new URLSearchParams()
                 Object.entries(params).forEach(([key, value]) => {
-                    if (value !== undefined && value !== null) {
+                    if (value !== undefined && value !== null && value !== '') {
                         queryParams.append(key, value.toString())
                     }
                 })
-                return `?${queryParams.toString()}`
+                // FIX: Add '/vehicles' to match your backend route
+                return `/vehicles?${queryParams.toString()}`
             },
             providesTags: ['Vehicles'],
         }),
         getVehicleById: builder.query<Vehicle, number>({
-            query: (id) => `/${id}`,
+            query: (id) => `/vehicles/${id}`, // FIX: Add '/vehicles'
             providesTags: ['Vehicles'],
         }),
         getVehicleLocations: builder.query<string[], void>({
-            query: () => '/locations',
+            query: () => '/vehicles/locations', // FIX: Add '/vehicles'
         }),
         getVehicleSpecifications: builder.query<any[], void>({
-            query: () => '/specifications',
+            query: () => '/vehicles/specifications', // FIX: Add '/vehicles'
         }),
     }),
 })

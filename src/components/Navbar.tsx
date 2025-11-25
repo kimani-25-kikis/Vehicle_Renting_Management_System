@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router'
+import React, { useState } from 'react';
+// Changed 'react-router' to 'react-router-dom' - assuming this is correct for modern React Router setup
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import type { RootState } from '../store/store';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../features/slice/AuthSlice';
-import { ChevronDown, LogOut, Car, Menu, X, Phone, DollarSign, Calendar, Users, Info } from 'lucide-react';
+import { ChevronDown, LogOut, Car, Menu, X, Phone, DollarSign, Calendar, Users, Info, Home } from 'lucide-react';
 
 const Navbar: React.FC = () => {
     const dispatch = useDispatch();
@@ -29,12 +30,12 @@ const Navbar: React.FC = () => {
     };
 
     const navLinks = [
-        { path: '/', label: 'Home', icon: null },
-        { path: '/vehicles', label: 'Vehicles in Stock', icon: <Car size={16} /> },
-        { path: '/incoming', label: 'Incoming Cars', icon: <Calendar size={16} /> },
-        { path: '/finance', label: 'Finance Application', icon: <DollarSign size={16} /> },
-        { path: '/contact', label: 'Contact Us', icon: <Phone size={16} /> },
-        { path: '/about', label: 'About Us', icon: <Info size={16} /> },
+        { path: '/', label: 'Home', icon: <Home size={16} className="text-blue-900" /> }, 
+        { path: '/vehicles', label: 'Vehicles in Stock', icon: <Car size={16} className="text-blue-900" /> },
+        { path: '/incoming', label: 'Incoming Cars', icon: <Calendar size={16} className="text-blue-900" /> },
+        { path: '/finance', label: 'Finance Application', icon: <DollarSign size={16} className="text-blue-900" /> },
+        { path: '/contact', label: 'Contact Us', icon: <Phone size={16} className="text-blue-900" /> },
+        { path: '/about', label: 'About Us', icon: <Info size={16} className="text-blue-900" /> },
     ];
 
     const isActiveLink = (path: string) => {
@@ -82,12 +83,7 @@ const Navbar: React.FC = () => {
                         <div className="hidden md:flex items-center space-x-4">
                             {!isAuthenticated ? (
                                 <>
-                                    <Link
-                                        to="/login"
-                                        className="text-blue-900 hover:text-blue-700 px-4 py-2 text-sm font-semibold transition-colors whitespace-nowrap"
-                                    >
-                                        Sign In
-                                    </Link>
+                                    {/* Removed Sign In Link */}
                                     <Link
                                         to="/register"
                                         className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 whitespace-nowrap"
@@ -104,7 +100,7 @@ const Navbar: React.FC = () => {
                                         <span className="text-gray-800 font-semibold">
                                             Hi, {user?.first_name}
                                         </span>
-                                        <ChevronDown size={16} className="text-gray-600" />
+                                        <ChevronDown size={16} className="text-blue-900" />
                                     </button>
                                     <ul className="dropdown-content bg-white rounded-lg z-50 mt-2 w-48 p-2 shadow-xl border border-gray-200">
                                         <li className="px-4 py-2 text-sm text-gray-600 border-b border-gray-100">
@@ -115,7 +111,7 @@ const Navbar: React.FC = () => {
                                                 to="/dashboard"
                                                 className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-800 hover:bg-blue-50 rounded-md transition-colors font-semibold"
                                             >
-                                                <Users size={16} />
+                                                <Users size={16} className="text-blue-900" />
                                                 <span>Dashboard</span>
                                             </Link>
                                         </li>
@@ -124,7 +120,7 @@ const Navbar: React.FC = () => {
                                                 onClick={handleLogoutClick}
                                                 className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors font-semibold"
                                             >
-                                                <LogOut size={16} />
+                                                <LogOut size={16} /> 
                                                 <span>Logout</span>
                                             </button>
                                         </li>
@@ -169,13 +165,7 @@ const Navbar: React.FC = () => {
                             <div className="border-t border-gray-200 pt-3 mt-3">
                                 {!isAuthenticated ? (
                                     <div className="space-y-2">
-                                        <Link
-                                            to="/login"
-                                            onClick={() => setIsMobileMenuOpen(false)}
-                                            className="block text-center text-blue-900 hover:text-blue-700 px-3 py-2 text-base font-semibold"
-                                        >
-                                            Sign In
-                                        </Link>
+                                        {/* Removed Sign In Link */}
                                         <Link
                                             to="/register"
                                             onClick={() => setIsMobileMenuOpen(false)}
@@ -194,14 +184,14 @@ const Navbar: React.FC = () => {
                                             onClick={() => setIsMobileMenuOpen(false)}
                                             className="flex items-center space-x-2 px-3 py-2 text-gray-800 hover:bg-blue-50 rounded-md transition-colors font-semibold"
                                         >
-                                            <Users size={16} />
+                                            <Users size={16} className="text-blue-900" />
                                             <span>Dashboard</span>
                                         </Link>
                                         <button
                                             onClick={handleLogoutClick}
                                             className="flex items-center space-x-2 w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 rounded-md transition-colors font-semibold"
                                         >
-                                            <LogOut size={16} />
+                                            <LogOut size={16} /> 
                                             <span>Logout</span>
                                         </button>
                                     </div>
@@ -212,7 +202,7 @@ const Navbar: React.FC = () => {
                 )}
             </nav>
 
-            {/* Logout Confirmation Modal */}
+            {/* Logout Confirmation Modal - remains unchanged */}
             {showLogoutModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
                     {/* Blur Background */}
@@ -255,7 +245,7 @@ const Navbar: React.FC = () => {
                 </div>
             )}
         </>
-    )
+    );
 }
 
-export default Navbar
+export default Navbar;
