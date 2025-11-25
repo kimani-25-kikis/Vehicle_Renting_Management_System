@@ -52,6 +52,7 @@ export interface VehicleSpecification {
     color?: string
     features?: string
     vehicle_type: 'two-wheeler' | 'four-wheeler'
+    image_url?: string 
     created_at: string
     updated_at: string
 }

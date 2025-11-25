@@ -11,8 +11,6 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 
 // Define the path to the car image for the faded background
-// NOTE: Make sure you have this image asset in your project, e.g., in `../assets/CarBackground.jpg`
-// Replace 'YourCarBackgroundImage.jpg' with the actual path or URL of your car image.
 const FEATURED_VEHICLES_BG = 'https://m.media-amazon.com/images/I/81uVQ3ZZwqL._AC_UF350,350_QL80_.jpg'
 
 const HomePage: React.FC = () => {
@@ -242,21 +240,20 @@ const HomePage: React.FC = () => {
             </section>
 
             {/* Featured Vehicles - With Faded Background Image 🚗 */}
-            {/* Added relative, background-image styles, and an overlay */}
             <section className="py-16 relative overflow-hidden"> 
                 {/* Faded Background Image Layer */}
                 <div 
-                    className="absolute inset-0 opacity-30 pointer-events-none" // opacity-10 for faint/faded effect
+                    className="absolute inset-0 opacity-30 pointer-events-none"
                     style={{
                         backgroundImage: `url('${FEATURED_VEHICLES_BG}')`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
-                        filter: 'grayscale(100%) blur(2px)' // Optional: make it grayscale and slightly blurred for less distraction
+                        filter: 'grayscale(100%) blur(2px)'
                     }}
                 ></div>
 
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10"> {/* z-10 ensures content is above background */}
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
                     <div className="flex justify-between items-center mb-12">
                         <div>
                             <h2 className="text-3xl lg:text-4xl font-bold text-blue-900 mb-4">
@@ -291,13 +288,35 @@ const HomePage: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {featuredVehicles.map((vehicle: Vehicle) => (
                                 <div key={vehicle.vehicle_id} className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden group">
-                                    {/* Vehicle Image */}
-                                    <div className="relative h-48 bg-linear-to-br from-blue-100 to-blue-200 overflow-hidden">
+                                    {/* Vehicle Image - FIXED */}
+                                    <div className="relative h-48 overflow-hidden flex-shrink-0">
+                                        {/* Vehicle Image */}
+                                        {vehicle.specification.image_url ? (
+                                            <img 
+                                                src={vehicle.specification.image_url}
+                                                alt={`${vehicle.specification.manufacturer} ${vehicle.specification.model}`}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                onError={(e) => {
+                                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80'
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gradient-to-br from-blue-200 via-blue-100 to-indigo-200 flex items-center justify-center">
+                                                <Car size={48} className="text-blue-400" />
+                                            </div>
+                                        )}
+                                        
+                                        {/* Premium Gradient Overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                                        
+                                        {/* Favorite Button */}
                                         <div className="absolute top-4 right-4 flex space-x-2">
                                             <button className="bg-white/90 hover:bg-white p-2 rounded-full transition-colors">
                                                 <Heart size={18} className="text-gray-600 hover:text-red-500" />
                                             </button>
                                         </div>
+
+                                        {/* Fuel Type Badge */}
                                         <div className="absolute bottom-4 left-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                                 vehicle.specification.fuel_type === 'Electric' ? 'bg-green-100 text-green-800' :
@@ -310,9 +329,12 @@ const HomePage: React.FC = () => {
                                                 vehicle.specification.transmission}
                                             </span>
                                         </div>
+
+                                        {/* Location */}
                                         {vehicle.current_location && (
                                             <div className="absolute bottom-4 right-4">
-                                                <span className="bg-black/70 text-white px-2 py-1 rounded text-xs">
+                                                <span className="bg-black/70 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+                                                    <MapPin size={12} />
                                                     {vehicle.current_location}
                                                 </span>
                                             </div>
@@ -327,7 +349,7 @@ const HomePage: React.FC = () => {
                                                     {vehicle.specification.manufacturer} {vehicle.specification.model}
                                                 </h3>
                                                 <p className="text-gray-600 text-sm">
-                                                    {vehicle.specification.year} • {vehicle.specification.vehicle_type}
+                                                    {vehicle.specification.year} • {vehicle.specification.vehicle_type.replace('-', ' ')}
                                                 </p>
                                             </div>
                                             <div className="text-right">
@@ -389,7 +411,7 @@ const HomePage: React.FC = () => {
             </section>
 
             {/* CTA Section */}
-            <section className="py-20 bg-linear-to-r from-blue-900 to-navy-900 text-white">
+            <section className="py-20 bg-gradient-to-r from-blue-900 to-blue-700 text-white">
                 <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
                     <h2 className="text-3xl lg:text-4xl font-bold mb-6">
                         Ready to Start Your Journey?
