@@ -23,7 +23,7 @@ export const vehiclesApi = createApi({
                         queryParams.append(key, value.toString())
                     }
                 })
-                // FIX: Add '/vehicles' to match your backend route
+                
                 return `/vehicles?${queryParams.toString()}`
             },
             providesTags: ['Vehicles'],

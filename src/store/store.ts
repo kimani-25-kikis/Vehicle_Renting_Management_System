@@ -1,10 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { AuthApi } from '../features/api/AuthApi'
-import { vehiclesApi } from '../features/api/vehiclesApi' // Import vehiclesApi
+import { vehiclesApi } from '../features/api/vehiclesApi' 
 import authSlice from '../features/slice/AuthSlice'
 import storage from 'redux-persist/lib/storage' 
 import { persistReducer, persistStore } from 'redux-persist';
 import { userApi } from '../features/api/UserApi';
+import { bookingsApi } from '../features/api/bookingsApi'
 
 const authPersistConfig = {
     key: 'auth',
@@ -17,8 +18,9 @@ const persistedAuthReducer = persistReducer(authPersistConfig, authSlice);
 export const store = configureStore({
     reducer: {
         [AuthApi.reducerPath]: AuthApi.reducer,
-        [vehiclesApi.reducerPath]: vehiclesApi.reducer, // Add vehiclesApi reducer
+        [vehiclesApi.reducerPath]: vehiclesApi.reducer,
         [userApi.reducerPath]: userApi.reducer,
+        [bookingsApi.reducerPath]: bookingsApi.reducer,
         authSlice: persistedAuthReducer
     },
     middleware: (getDefaultMiddleware) =>
@@ -28,8 +30,9 @@ export const store = configureStore({
             },
         }).concat(
             AuthApi.middleware, 
-            vehiclesApi.middleware, // Add vehiclesApi middleware
+            vehiclesApi.middleware, 
             userApi.middleware,
+            bookingsApi.middleware,
         ),
 })
 

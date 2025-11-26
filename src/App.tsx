@@ -4,6 +4,7 @@ import Register from './userPages/Register'
 import HomePage from './components/homePage'
 import VehiclesListing from './vehicles/vehiclesListing'
 import VehicleDetails from './vehicles/VehicleDetails'
+import BookingFlow from './Booking/BookingFlow'
 
 function App() {
   const router = createBrowserRouter([
@@ -24,9 +25,13 @@ function App() {
       element: <VehiclesListing />
     },
     {
-    path: '/vehicles/:id',           // Add this route
+    path: '/vehicles/:id',           
     element: <VehicleDetails />
   },
+  {
+      path: '/bookings/new',                    
+      element: <BookingFlow />
+    },
   ])
 
   return (

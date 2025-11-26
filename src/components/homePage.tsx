@@ -6,11 +6,11 @@ import type { Vehicle } from '../types/Types'
 import Navbar from './Navbar'
 import Footer from './Footer'
 
-// Import Redux hooks for authentication state
+
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 
-// Define the path to the car image for the faded background
+
 const FEATURED_VEHICLES_BG = 'https://m.media-amazon.com/images/I/81uVQ3ZZwqL._AC_UF350,350_QL80_.jpg'
 
 const HomePage: React.FC = () => {
@@ -24,7 +24,7 @@ const HomePage: React.FC = () => {
         availability: true
     })
 
-    // Access Authentication State
+   
     const { isAuthenticated } = useSelector((state: RootState) => state.authSlice);
 
     const featuredVehicles = vehiclesData?.vehicles || []

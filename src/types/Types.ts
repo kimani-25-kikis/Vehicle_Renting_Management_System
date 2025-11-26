@@ -85,3 +85,37 @@ export interface VehicleQueryParams {
     vehicle_type?: string
 }
 
+export interface DecodedToken {
+  user_id: number
+  email: string
+  role: string 
+  exp: number
+  iat: number
+}
+
+export interface UserContext {
+  user_id: number
+  email: string
+  first_name: string
+  last_name: string
+  role: string 
+}
+
+export interface BookingRequest {
+  vehicle_id: number;
+  pickup_location: string;
+  return_location: string;
+  pickup_date: string;
+  return_date: string;
+  total_amount: number;
+  driver_license: {
+    number: string;
+    expiryDate: string;
+    frontImageUrl: string; 
+    backImageUrl: string;  
+    verified: boolean;
+  };
+  insurance_type: string;
+  additional_protection: boolean;
+  roadside_assistance: boolean;
+}
