@@ -5,6 +5,8 @@ import HomePage from './components/homePage'
 import VehiclesListing from './vehicles/vehiclesListing'
 import VehicleDetails from './vehicles/VehicleDetails'
 import BookingFlow from './Booking/BookingFlow'
+import BookingConfirmation from './Booking/BookingConfirmation'
+import MyBookings from './Booking/MyBooking'
 
 function App() {
   const router = createBrowserRouter([
@@ -31,6 +33,14 @@ function App() {
   {
       path: '/bookings/new',                    
       element: <BookingFlow />
+    },
+    {
+      path: '/booking-confirmation/:id',      
+      element: <BookingConfirmation />
+    },
+    {
+      path: "/my-bookings",
+     element: <MyBookings  />
     },
   ])
 

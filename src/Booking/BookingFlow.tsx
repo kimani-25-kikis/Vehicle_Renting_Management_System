@@ -274,39 +274,65 @@ const BookingFlow: React.FC = () => {
     }
 
     // UPDATED: Booking submission with server URLs
-    const handleSubmitBooking = async () => {
-        try {
-            // Ensure both images have been uploaded to server
-            if (!bookingData.driverLicense.frontImageUrl || !bookingData.driverLicense.backImageUrl) {
-                alert('Please complete license image uploads before submitting')
-                return
-            }
+ const handleSubmitBooking = async () => {
+    try {
+        // Ensure both images have been uploaded to server
+        if (!bookingData.driverLicense.frontImageUrl || !bookingData.driverLicense.backImageUrl) {
+            alert('Please complete license image uploads before submitting')
+            return
+        }
 
-            const bookingPayload = {
-                vehicle_id: Number(vehicleId),
-                pickup_location: bookingData.pickupLocation,
-                return_location: bookingData.returnLocation,
-                pickup_date: bookingData.pickupDate,
-                return_date: bookingData.returnDate,
-                total_amount: tripDetails?.total || 0,
-                driver_license: {
-                    number: bookingData.driverLicense.number,
-                    expiryDate: bookingData.driverLicense.expiryDate,
-                    frontImage: bookingData.driverLicense.frontImage,
-                    backImage: bookingData.driverLicense.backImage
-                },
-                insurance_type: bookingData.insuranceType,
-                additional_protection: bookingData.additionalProtection,
-                roadside_assistance: bookingData.roadsideAssistance
-            }
+        // Get user ID from Redux persist storage
+        const persistAuth = localStorage.getItem('persist:auth')
+        let userId = null
+        if (persistAuth) {
+            const authState = JSON.parse(persistAuth)
+            const userData = JSON.parse(authState.user || '{}')
+            userId = userData.user_id
+        }
+
+        if (!userId) {
+            throw new Error('User not authenticated')
+        }
+
+        const bookingPayload = {
+            user_id: userId,
+            vehicle_id: Number(vehicleId),
+            pickup_location: bookingData.pickupLocation,
+            return_location: bookingData.returnLocation,
+            pickup_date: bookingData.pickupDate,  // When they pick up
+            return_date: bookingData.returnDate,  // When they return
+            booking_date: new Date().toISOString(), // When booking was made
+            total_amount: tripDetails?.total || 0,
             
-            const result = await createBooking(bookingPayload).unwrap()
-            navigate(`/booking-confirmation/${result.booking_id}`)
-        } catch (error) {
-            console.error('Booking failed:', error)
-            alert('Booking failed. Please try again.')
+            // Driver License Info
+            driver_license_number: bookingData.driverLicense.number,
+            driver_license_expiry: bookingData.driverLicense.expiryDate,
+            driver_license_front_url: bookingData.driverLicense.frontImageUrl,
+            driver_license_back_url: bookingData.driverLicense.backImageUrl,
+            
+            // Insurance & Protection
+            insurance_type: bookingData.insuranceType,
+            additional_protection: bookingData.additionalProtection,
+            roadside_assistance: bookingData.roadsideAssistance,
+            
+            // Status (will be 'Pending' by default)
+            booking_status: 'Pending'
+        }
+
+        console.log('📦 Complete booking payload:', bookingPayload)
+        
+        const result = await createBooking(bookingPayload).unwrap()
+        navigate(`/booking-confirmation/${result.booking_id}`)
+    } catch (error: any) {
+        console.error('❌ Booking failed:', error)
+        
+        if (error.data) {
+            console.error('🔍 Server error response:', error.data)
+            alert(`Booking failed: ${error.data.error || 'Please check required fields'}`)
         }
     }
+}
 
     if (isLoading) {
         return (
@@ -322,6 +348,7 @@ const BookingFlow: React.FC = () => {
     if (error || !vehicle) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+                
                 <div className="text-center bg-white rounded-2xl p-8 shadow-xl max-w-md">
                     <Car size={64} className="mx-auto text-gray-400 mb-4" />
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Vehicle Not Found</h2>
