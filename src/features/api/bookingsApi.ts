@@ -9,18 +9,18 @@ export interface BookingRequest {
   return_date: string
   booking_date: string
   total_amount: number
-  
+
   // Driver License
   driver_license_number: string
   driver_license_expiry: string
   driver_license_front_url: string
   driver_license_back_url: string
-  
+
   // Insurance
   insurance_type: string
   additional_protection: boolean
   roadside_assistance: boolean
-  
+
   // Status
   booking_status: string
 }
@@ -35,7 +35,7 @@ export interface BookingResponse {
   return_date: string
   booking_date: string
   total_amount: number
-  
+
   driver_license_number: string
   driver_license_expiry: string
   driver_license_front_url: string
@@ -47,7 +47,7 @@ export interface BookingResponse {
   verified_by_admin: boolean
   verified_at: string | null
   admin_notes: string | null
-  
+
   created_at: string
   updated_at: string
 }
@@ -65,11 +65,11 @@ const getAuthToken = (): string | null => {
   try {
     const persistAuth = localStorage.getItem('persist:auth')
     if (!persistAuth) return null
-    
+
     const authState = JSON.parse(persistAuth)
     const tokenWithBearer = authState.token
     if (!tokenWithBearer) return null
-    
+
     return tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '')
   } catch (error) {
     console.error('Error getting auth token:', error)
@@ -91,6 +91,8 @@ export const bookingsApi = createApi({
   }),
   tagTypes: ['Bookings'],
   endpoints: (builder) => ({
+
+    // CREATE BOOKING
     createBooking: builder.mutation<BookingResponse, BookingRequest>({
       query: (bookingData) => ({
         url: '/bookings',
@@ -99,15 +101,20 @@ export const bookingsApi = createApi({
       }),
       invalidatesTags: ['Bookings'],
     }),
+
+    // GET LOGGED-IN USER BOOKINGS
     getMyBookings: builder.query<BookingResponse[], void>({
       query: () => '/bookings/my-bookings',
       providesTags: ['Bookings'],
     }),
+
+    // GET BOOKING BY ID
     getBookingById: builder.query<BookingResponse, number>({
       query: (id) => `/bookings/${id}`,
       providesTags: ['Bookings'],
     }),
-    // ✅ New cancelBooking mutation
+
+    // CANCEL BOOKING
     cancelBooking: builder.mutation<{ message: string }, number>({
       query: (bookingId) => ({
         url: `/bookings/${bookingId}`,
@@ -115,6 +122,20 @@ export const bookingsApi = createApi({
       }),
       invalidatesTags: ['Bookings'],
     }),
+
+    // EXTEND BOOKING
+    extendBooking: builder.mutation<
+      BookingResponse,
+      { bookingId: number; newReturnDate: string }
+    >({
+      query: ({ bookingId, newReturnDate }) => ({
+        url: `/bookings/${bookingId}/extend`,
+        method: 'PUT',
+        body: { new_return_date: newReturnDate },
+      }),
+      invalidatesTags: ['Bookings'],
+    }),
+
   }),
 })
 
@@ -122,5 +143,6 @@ export const {
   useCreateBookingMutation,
   useGetMyBookingsQuery,
   useGetBookingByIdQuery,
-  useCancelBookingMutation, // ✅ Added hook
+  useCancelBookingMutation,
+  useExtendBookingMutation,   // ✅ Export extendBooking
 } = bookingsApi

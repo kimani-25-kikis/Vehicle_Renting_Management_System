@@ -46,6 +46,7 @@ export interface VehicleSpecification {
     model: string
     year: number
     fuel_type: string
+    
     engine_capacity?: number
     transmission: 'Manual' | 'Automatic'
     seating_capacity: number
