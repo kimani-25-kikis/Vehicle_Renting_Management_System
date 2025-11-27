@@ -7,6 +7,7 @@ import VehicleDetails from './vehicles/VehicleDetails'
 import BookingFlow from './Booking/BookingFlow'
 import BookingConfirmation from './Booking/BookingConfirmation'
 import MyBookings from './Booking/MyBooking'
+import { Toaster } from 'sonner'
 
 function App() {
   const router = createBrowserRouter([
@@ -45,7 +46,10 @@ function App() {
   ])
 
   return (
+    <>
     <RouterProvider router={router} />
+    <Toaster position="top-center" richColors closeButton />
+    </>
   )
 }
 

@@ -1,6 +1,6 @@
 // MyBookings.tsx
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'               // ← Fixed: react-router-dom
+import { Link } from 'react-router-dom'
 import { 
   useGetMyBookingsQuery, 
   useCancelBookingMutation 
@@ -8,17 +8,15 @@ import {
 import { useGetVehicleByIdQuery } from '../features/api/vehiclesApi'
 import { 
   Calendar, MapPin, Car, Clock, CheckCircle, 
-  XCircle, AlertCircle, Loader, ArrowLeft, Eye, Trash2
+  XCircle, Loader, ArrowLeft, Eye, Trash2
 } from 'lucide-react'
+import { toast } from 'sonner'
 import Navbar from '../components/Navbar'
 
-// Small component to fetch and show vehicle name
 const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
   const { data: vehicle, isLoading } = useGetVehicleByIdQuery(vehicleId)
-
-  if (isLoading) return <span className="text-gray-500">Loading vehicle...</span>
+  if (isLoading) return <span className="text-gray-500">Loading...</span>
   if (!vehicle) return <span className="text-red-500">Unknown Vehicle</span>
-
   return (
     <span className="font-bold text-gray-900">
       {vehicle.specification.manufacturer} {vehicle.specification.model}
@@ -27,23 +25,23 @@ const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
 }
 
 const MyBookings: React.FC = () => {
-  const { 
-    data: bookings = [], 
-    isLoading, 
-    error
-  } = useGetMyBookingsQuery()
-
+  const { data: bookings = [], isLoading, error } = useGetMyBookingsQuery()
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
+
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled'>('all')
+  const [showCancelModal, setShowCancelModal] = useState<number | null>(null)
+  const [cancellingId, setCancellingId] = useState<number | null>(null)
 
   const getStatusColor = (status: string) => {
     const s = status.toLowerCase()
-    if (s === 'pending') return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-    if (s === 'approved') return 'bg-green-100 text-green-800 border-green-200'
-    if (s === 'active') return 'bg-blue-100 text-blue-800 border-blue-200'
-    if (s === 'completed') return 'bg-gray-100 text-gray-800 border-gray-200'
-    if (s === 'cancelled' || s === 'rejected') return 'bg-red-100 text-red-800 border-red-200'
-    return 'bg-gray-100 text-gray-800 border-gray-200'
+    switch (s) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'approved': return 'bg-green-100 text-green-800 border-green-200'
+      case 'active': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'completed': return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'cancelled': case 'rejected': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
   }
 
   const getStatusIcon = (status: string) => {
@@ -53,43 +51,43 @@ const MyBookings: React.FC = () => {
     return <Clock size={16} />
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
+  const formatDateTime = (date: string) =>
+    new Date(date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 
-  const handleCancel = async (bookingId: number) => {
-    if (!window.confirm('Are you sure you want to cancel this booking? This action cannot be undone.')) return
+  const handleCancelClick = (id: number) => setShowCancelModal(id)
+
+  const confirmCancel = async () => {
+    if (!showCancelModal) return
+    setCancellingId(showCancelModal)
 
     try {
-      await cancelBooking(bookingId).unwrap()
-      alert('Booking cancelled successfully!')
+      await cancelBooking(showCancelModal).unwrap()
+      toast.success('Booking cancelled successfully!', {
+        description: 'Your booking has been removed.',
+        duration: 5000,
+      })
+      setShowCancelModal(null)
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to cancel booking.')
+      toast.error('Failed to cancel booking', {
+        description: err?.data?.message || 'Please try again later.',
+      })
+    } finally {
+      setCancellingId(null)
     }
   }
 
-  const filteredBookings = bookings.filter(booking => 
-    filter === 'all' || booking.booking_status.toLowerCase() === filter
+  const filteredBookings = bookings.filter(b =>
+    filter === 'all' || b.booking_status.toLowerCase() === filter
   )
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <Navbar />
-        <div className="flex items-center justify-center py-32">
+        <div className="text-center">
           <Loader className="mx-auto text-blue-600 animate-spin" size={48} />
           <p className="mt-4 text-gray-600 text-lg">Loading your bookings...</p>
         </div>
@@ -99,19 +97,14 @@ const MyBookings: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <Navbar />
-        <div className="flex items-center justify-center py-32">
-          <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-md">
-            <AlertCircle className="mx-auto text-red-500 mb-4" size={64} />
-            <h2 className="text-2xl font-bold mb-4">Error Loading Bookings</h2>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium"
-            >
-              Try Again
-            </button>
-          </div>
+        <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-md">
+          <XCircle className="mx-auto text-red-500 mb-4" size={64} />
+          <h2 className="text-2xl font-bold mb-4">Error Loading Bookings</h2>
+          <button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl">
+            Try Again
+          </button>
         </div>
       </div>
     )
@@ -120,9 +113,10 @@ const MyBookings: React.FC = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pt-20">
+      {/* Main content starts right under navbar – no extra padding */}
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         {/* Header */}
-        <div className="bg-white/80 backdrop-blur-lg border-b">
+        <div className="bg-white/80 backdrop-blur-lg border-b border-blue-100">
           <div className="max-w-6xl mx-auto px-4 py-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -133,7 +127,7 @@ const MyBookings: React.FC = () => {
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     My Bookings
                   </h1>
-                  <p className="text-gray-600">Manage all your vehicle rentals in one place</p>
+                  <p className="text-gray-600">Manage all your vehicle rentals</p>
                 </div>
               </div>
               <div className="text-right">
@@ -148,32 +142,21 @@ const MyBookings: React.FC = () => {
           {/* Filter Tabs */}
           <div className="bg-white rounded-2xl shadow-xl border border-blue-100 p-6 mb-8">
             <div className="flex flex-wrap gap-3">
-              {[
-                { key: 'all', label: 'All' },
-                { key: 'pending', label: 'Pending' },
-                { key: 'approved', label: 'Approved' },
-                { key: 'active', label: 'Active' },
-                { key: 'completed', label: 'Completed' },
-                { key: 'cancelled', label: 'Cancelled' },
-              ].map(tab => {
-                const count = bookings.filter(b => 
-                  tab.key === 'all' ? true : b.booking_status.toLowerCase() === tab.key
-                ).length
-
+              {(['all', 'pending', 'approved', 'active', 'completed', 'cancelled'] as const).map(key => {
+                const label = key.charAt(0).toUpperCase() + key.slice(1)
+                const count = bookings.filter(b => key === 'all' || b.booking_status.toLowerCase() === key).length
                 return (
                   <button
-                    key={tab.key}
-                    onClick={() => setFilter(tab.key as any)}
-                    className={`px-5 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
-                      filter === tab.key
+                    key={key}
+                    onClick={() => setFilter(key)}
+                    className={`px-5 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all ${
+                      filter === key
                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                         : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                     }`}
                   >
-                    {tab.label}
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${
-                      filter === tab.key ? 'bg-white/30' : 'bg-gray-300'
-                    }`}>
+                    {label}
+                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${filter === key ? 'bg-white/30' : 'bg-gray-300'}`}>
                       {count}
                     </span>
                   </button>
@@ -183,33 +166,21 @@ const MyBookings: React.FC = () => {
           </div>
 
           {/* Bookings List */}
-          <div className="space-y-6">
+          <div className="space-y-6 pb-10">
             {filteredBookings.length === 0 ? (
               <div className="text-center bg-white rounded-3xl shadow-2xl p-16 border border-blue-100">
                 <Calendar className="mx-auto text-gray-300 mb-6" size={80} />
                 <h3 className="text-2xl font-bold text-gray-800 mb-3">
-                  {filter === 'all' ? "No bookings yet" : `No ${filter} bookings`}
+                  {filter === 'all' ? 'No bookings yet' : `No ${filter} bookings`}
                 </h3>
-                <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                  {filter === 'all' 
-                    ? "You haven't booked any vehicles yet. Start exploring!"
-                    : "You don't have any bookings with this status."
-                  }
-                </p>
-                <Link 
-                  to="/vehicles" 
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:shadow-xl transition-shadow inline-flex items-center gap-3"
-                >
+                <Link to="/vehicles" className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg inline-flex items-center gap-3">
                   <Car size={24} />
                   Browse Vehicles
                 </Link>
               </div>
             ) : (
               filteredBookings.map(booking => (
-                <div 
-                  key={booking.booking_id} 
-                  className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden hover:shadow-2xl transition-shadow"
-                >
+                <div key={booking.booking_id} className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden hover:shadow-2xl transition-shadow">
                   <div className="p-8">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                       <div className="flex-1">
@@ -269,22 +240,12 @@ const MyBookings: React.FC = () => {
 
                         {['pending', 'approved'].includes(booking.booking_status.toLowerCase()) && (
                           <button
-                            onClick={() => handleCancel(booking.booking_id)}
+                            onClick={() => handleCancelClick(booking.booking_id)}
                             disabled={isCancelling}
-                            className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                              isCancelling
-                                ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                                : 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl'
-                            }`}
+                            className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
                           >
-                            {isCancelling ? (
-                              'Cancelling...'
-                            ) : (
-                              <>
-                                <Trash2 size={18} />
-                                Cancel Booking
-                              </>
-                            )}
+                            <Trash2 size={18} />
+                            Cancel Booking
                           </button>
                         )}
                       </div>
@@ -301,6 +262,50 @@ const MyBookings: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Cancel Modal – Ultra Smooth + Real Blur */}
+        {showCancelModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop with real blur */}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+              onClick={() => setShowCancelModal(null)}
+            />
+
+            {/* Modal */}
+            <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in-95 duration-300">
+              <div className="text-center">
+                <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
+                  <XCircle className="text-red-600" size={48} />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Cancel Booking?</h3>
+                <p className="text-gray-600 mb-8 max-w-xs mx-auto">
+                  This action cannot be undone. Your booking will be permanently cancelled.
+                </p>
+
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => setShowCancelModal(null)}
+                    className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-all"
+                  >
+                    No, Keep Booking
+                  </button>
+                  <button
+                    onClick={confirmCancel}
+                    disabled={cancellingId === showCancelModal}
+                    className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-all disabled:opacity-70 flex items-center gap-2"
+                  >
+                    {cancellingId === showCancelModal ? (
+                      <>Cancelling...</>
+                    ) : (
+                      <>Yes, Cancel Booking</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
