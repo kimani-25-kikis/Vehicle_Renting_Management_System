@@ -9,12 +9,15 @@ import {
 } from 'lucide-react'
 
 const BookingConfirmation: React.FC = () => {
-  const { id } = useParams<{ id: string }>()
+  const { booking_id } = useParams<{ booking_id: string }>()
   const navigate = useNavigate()
 
-  const { data: booking, isLoading, error } = useGetBookingByIdQuery(Number(id))
-  const { data: vehicle } = useGetVehicleByIdQuery(booking?.vehicle_id || 0, {
-    skip: !booking?.vehicle_id
+  
+  const { data: booking, isLoading, error } = useGetBookingByIdQuery(Number(booking_id))
+  const vehicle_id = booking?.booking.vehicle_id || 0
+  console.log("🚀 ~ BookingConfirmation ~ vehicle:", vehicle_id)
+  const { data: vehicle } = useGetVehicleByIdQuery(vehicle_id, {
+    skip: !vehicle_id
   })
 
   useEffect(() => {
@@ -48,7 +51,7 @@ const BookingConfirmation: React.FC = () => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>RentWheels Receipt #RW${String(booking.booking_id).padStart(6, '0')}</title>
+  <title>RentWheels Receipt #RW${String(booking?.booking.booking_id).padStart(6, '0')}</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; margin: 0; padding: 40px; background: white; color: #1f2937; line-height: 1.7; }
@@ -74,12 +77,12 @@ const BookingConfirmation: React.FC = () => {
     <div class="header">
       <div class="logo">RentWheels</div>
       <h1>Official Receipt</h1>
-      <p><strong>#RW${String(booking.booking_id).padStart(6, '0')}</strong> • ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      <p><strong>#RW${String(booking.booking.booking_id).padStart(6, '0')}</strong> • ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
     </div>
 
     <div class="grid">
       <div class="card"><h3>Customer</h3>Verified User</div>
-      <div class="card"><h3>Status</h3><span style="color:#16a34a;font-weight:700;">${booking.booking_status.toUpperCase()}</span></div>
+      <div class="card"><h3>Status</h3><span style="color:#16a34a;font-weight:700;">${booking.booking.booking_status.toUpperCase()}</span></div>
       <div class="card"><h3>Vehicle</h3>${vehicle.specification.manufacturer} ${vehicle.specification.model} ${vehicle.specification.year}</div>
       <div class="card"><h3>Daily Rate</h3>$${vehicle.rental_rate}</div>
     </div>
@@ -92,26 +95,26 @@ const BookingConfirmation: React.FC = () => {
 
     <div class="card">
       <h3>Rental Period</h3>
-      <p><strong>Pickup:</strong> ${new Date(booking.pickup_date).toLocaleString()} @ ${booking.pickup_location}</p>
-      <p><strong>Return:</strong> ${new Date(booking.return_date).toLocaleString()} @ ${booking.return_location}</p>
+      <p><strong>Pickup:</strong> ${new Date(booking.booking.pickup_date).toLocaleString()} @ ${booking.booking.pickup_location}</p>
+      <p><strong>Return:</strong> ${new Date(booking.booking.return_date).toLocaleString()} @ ${booking.booking.return_location}</p>
     </div>
 
     <div class="card">
       <h3>Protection & Insurance</h3>
-      <p>• Insurance: <strong style="color:#ea580c;">${booking.insurance_type}</strong></p>
-      <p>• Roadside Assistance: <strong>${booking.roadside_assistance ? 'Included' : 'Not Included'}</strong></p>
-      <p>• Additional Protection: <strong>${booking.additional_protection ? 'Added' : 'Not Added'}</strong></p>
+      <p>• Insurance: <strong style="color:#ea580c;">${booking.booking.insurance_type}</strong></p>
+      <p>• Roadside Assistance: <strong>${booking.booking.roadside_assistance ? 'Included' : 'Not Included'}</strong></p>
+      <p>• Additional Protection: <strong>${booking.booking.additional_protection ? 'Added' : 'Not Added'}</strong></p>
     </div>
 
     <div class="card">
       <h3>Payment Breakdown</h3>
       <table>
         <tr><th>Description</th><th style="text-align:right;">Amount</th></tr>
-        <tr><td>Base Rental</td><td style="text-align:right;">$${(booking.total_amount - 40).toFixed(2)}</td></tr>
+        <tr><td>Base Rental</td><td style="text-align:right;">$${(booking.booking.total_amount - 40).toFixed(2)}</td></tr>
         <tr><td>Insurance & Protection</td><td style="text-align:right;">$25.00</td></tr>
         <tr><td>Taxes & Fees</td><td style="text-align:right;">$15.00</td></tr>
       </table>
-      <div class="total">TOTAL PAID: $${booking.total_amount.toFixed(2)}</div>
+      <div class="total">TOTAL PAID: $${booking.booking.total_amount.toFixed(2)}</div>
     </div>
 
     <div class="footer">
@@ -156,28 +159,28 @@ const BookingConfirmation: React.FC = () => {
 <body>
   <div class="header">
     <h1>RentWheels Receipt</h1>
-    <p>#RW${String(booking?.booking_id).padStart(6, '0')} • ${new Date().toLocaleDateString()}</p>
+    <p>#RW${String(booking?.booking.booking_id).padStart(6, '0')} • ${new Date().toLocaleDateString()}</p>
   </div>
 
   <div class="info">
     <div><strong>Customer:</strong> Verified User</div>
-    <div><strong>Status:</strong> ${booking?.booking_status.toUpperCase()}</div>
+    <div><strong>Status:</strong> ${booking?.booking.booking_status.toUpperCase()}</div>
     <div><strong>Vehicle:</strong> ${vehicle?.specification.manufacturer} ${vehicle?.specification.model} ${vehicle?.specification.year}</div>
-    <div><strong>Total Paid:</strong> $${booking?.total_amount}</div>
+    <div><strong>Total Paid:</strong> $${booking?.booking.total_amount}</div>
   </div>
 
   <div class="section">
-    <strong>Pickup:</strong> ${booking && new Date(booking.pickup_date).toLocaleString()} @ ${booking?.pickup_location}<br>
-    <strong>Return:</strong> ${booking && new Date(booking.return_date).toLocaleString()} @ ${booking?.return_location}
+    <strong>Pickup:</strong> ${booking && new Date(booking.booking.pickup_date).toLocaleString()} @ ${booking?.booking.pickup_location}<br>
+    <strong>Return:</strong> ${booking && new Date(booking.booking.return_date).toLocaleString()} @ ${booking?.booking.return_location}
   </div>
 
   <div class="section">
-    <strong>Protection:</strong> ${booking?.insurance_type} • 
-    Roadside: ${booking?.roadside_assistance ? 'Yes' : 'No'} • 
-    Extra: ${booking?.additional_protection ? 'Yes' : 'No'}
+    <strong>Protection:</strong> ${booking?.booking.insurance_type} • 
+    Roadside: ${booking?.booking.roadside_assistance ? 'Yes' : 'No'} • 
+    Extra: ${booking?.booking.additional_protection ? 'Yes' : 'No'}
   </div>
 
-  <div class="total">Total Amount: $${booking?.total_amount}</div>
+  <div class="total">Total Amount: $${booking?.booking.total_amount}</div>
 </body>
 </html>
     `)
@@ -272,9 +275,9 @@ const BookingConfirmation: React.FC = () => {
                     </div>
                   </div>
                   <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-2xl border border-white/30">
-                    <div className="text-2xl font-bold">#RW{booking.booking_id.toString().padStart(6, '0')}</div>
-                    <div className={`px-3 py-1 rounded-full text-sm font-semibold border mt-2 ${getStatusColor(booking.booking_status)}`}>
-                      {booking.booking_status}
+                    <div className="text-2xl font-bold">#RW{booking.booking.booking_id.toString().padStart(6, '0')}</div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-semibold border mt-2 ${getStatusColor(booking.booking.booking_status)}`}>
+                      {booking.booking.booking_status}
                     </div>
                   </div>
                 </div>
@@ -303,16 +306,16 @@ const BookingConfirmation: React.FC = () => {
                         <Calendar className="text-green-600" size={24} />
                         <div>
                           <div className="font-semibold text-gray-900">Pickup</div>
-                          <div className="text-gray-600">{formatDate(booking.pickup_date)}</div>
-                          <div className="text-sm text-gray-500">{formatTime(booking.pickup_date)} • {booking.pickup_location}</div>
+                          <div className="text-gray-600">{formatDate(booking.booking.pickup_date)}</div>
+                          <div className="text-sm text-gray-500">{formatTime(booking.booking.pickup_date)} • {booking.booking.pickup_location}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 p-4 bg-purple-50/50 rounded-2xl border border-purple-100">
                         <Calendar className="text-purple-600" size={24} />
                         <div>
                           <div className="font-semibold text-gray-900">Return</div>
-                          <div className="text-gray-600">{formatDate(booking.return_date)}</div>
-                          <div className="text-sm text-gray-500">{formatTime(booking.return_date)} • {booking.return_location}</div>
+                          <div className="text-gray-600">{formatDate(booking.booking.return_date)}</div>
+                          <div className="text-sm text-gray-500">{formatTime(booking.booking.return_date)} • {booking.booking.return_location}</div>
                         </div>
                       </div>
                     </div>
@@ -328,22 +331,22 @@ const BookingConfirmation: React.FC = () => {
                     <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
                       <div className="flex justify-between">
                         <span className="font-semibold">Insurance</span>
-                        <span className="text-orange-600 font-bold capitalize">{booking.insurance_type}</span>
+                        <span className="text-orange-600 font-bold capitalize">{booking.booking.insurance_type}</span>
                       </div>
                     </div>
                     <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
                       <div className="flex justify-between">
                         <span className="font-semibold">Roadside Assistance</span>
-                        <span className={booking.roadside_assistance ? 'text-green-600 font-bold' : 'text-gray-500'}>
-                          {booking.roadside_assistance ? 'Included' : 'Not Included'}
+                        <span className={booking.booking.roadside_assistance ? 'text-green-600 font-bold' : 'text-gray-500'}>
+                          {booking.booking.roadside_assistance ? 'Included' : 'Not Included'}
                         </span>
                       </div>
                     </div>
                     <div className="p-4 bg-green-50/50 rounded-2xl border border-green-100">
                       <div className="flex justify-between">
                         <span className="font-semibold">Additional Protection</span>
-                        <span className={booking.additional_protection ? 'text-green-600 font-bold' : 'text-gray-500'}>
-                          {booking.additional_protection ? 'Added' : 'Not Added'}
+                        <span className={booking.booking.additional_protection ? 'text-green-600 font-bold' : 'text-gray-500'}>
+                          {booking.booking.additional_protection ? 'Added' : 'Not Added'}
                         </span>
                       </div>
                     </div>
@@ -384,7 +387,7 @@ const BookingConfirmation: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600">Vehicle Rental</span>
-                    <span className="font-semibold">${(booking.total_amount - 40).toFixed(2)}</span>
+                    <span className="font-semibold">${(booking.booking.total_amount - 40).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600">Insurance</span>
@@ -396,7 +399,7 @@ const BookingConfirmation: React.FC = () => {
                   </div>
                   <div className="flex justify-between pt-4 border-t border-gray-300">
                     <span className="text-lg font-bold text-gray-900">Total</span>
-                    <span className="text-2xl font-bold text-blue-600">${booking.total_amount}</span>
+                    <span className="text-2xl font-bold text-blue-600">${booking.booking.total_amount}</span>
                   </div>
                 </div>
                 <div className="mt-6 p-4 bg-green-50 rounded-xl border border-green-200 text-center">

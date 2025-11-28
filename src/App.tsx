@@ -36,7 +36,7 @@ function App() {
       element: <BookingFlow />
     },
     {
-      path: '/booking-confirmation/:id',      
+      path: '/booking-confirmation/:booking_id',      
       element: <BookingConfirmation />
     },
     {

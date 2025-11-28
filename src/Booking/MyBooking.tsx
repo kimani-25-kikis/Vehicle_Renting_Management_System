@@ -1,6 +1,7 @@
 // MyBookings.tsx
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { 
   useGetMyBookingsQuery, 
   useCancelBookingMutation 
@@ -11,7 +12,43 @@ import {
   XCircle, Loader, ArrowLeft, Eye, Trash2
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {loadStripe} from "@stripe/stripe-js"
+const stripePromise = loadStripe('pk_test_51SYBIfE5TRP3rh7FeOjNUDed6nQ2v8OAVQEgn1g6YrYxSKIm7gKoiBJlieusfAfSl1DOWPdaWHNHQIkQ6P5B0kT800IDfFLtsu');
+
+
+
+export interface BookingData {
+
+booking_id: number
+  user_id: number
+  vehicle_id: number
+  pickup_location: string
+  return_location: string
+  pickup_date: string
+  return_date: string
+  booking_date: string
+  total_amount: number
+
+  driver_license_number: string
+  driver_license_expiry: string
+  driver_license_front_url: string
+  driver_license_back_url: string
+  insurance_type: string
+  additional_protection: boolean
+  roadside_assistance: boolean
+  booking_status: string
+  verified_by_admin: boolean
+  verified_at: string | null
+  admin_notes: string | null
+
+  created_at: string
+  updated_at: string
+}
+  
 import Navbar from '../components/Navbar'
+import { apiDomain } from '../apiDomain/apiDomain'
+import { useSelector } from 'react-redux'
+import type { RootState } from '../store/store'
 
 const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
   const { data: vehicle, isLoading } = useGetVehicleByIdQuery(vehicleId)
@@ -25,12 +62,16 @@ const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
 }
 
 const MyBookings: React.FC = () => {
-  const { data: bookings = [], isLoading, error } = useGetMyBookingsQuery()
+  const { data: bookings, isLoading, error } = useGetMyBookingsQuery()
+  console.log("🚀 ~ MyBookings ~ bookings:", bookings)
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
 
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled'>('all')
   const [showCancelModal, setShowCancelModal] = useState<number | null>(null)
   const [cancellingId, setCancellingId] = useState<number | null>(null)
+  const {token} = useSelector((state:RootState)=>state.authSlice);
+  const navigate = useNavigate()
+  console.log("🚀 ~ MyBookings ~ token:", token)
 
   const getStatusColor = (status: string) => {
     const s = status.toLowerCase()
@@ -59,6 +100,35 @@ const MyBookings: React.FC = () => {
 
   const handleCancelClick = (id: number) => setShowCancelModal(id)
 
+  const handleCancelCheckout=async(booking:any)=>{
+    console.log("🚀 ~ handleCancelCheckout ~ booking:", booking)
+    
+    try {
+       await stripePromise;
+      const header = { 'Content-Type': 'application/json' };
+      const checkoutResponse = await axios.post(`${apiDomain}payments/create-intent`, JSON.stringify(booking), {
+        headers: { ...header, Authorization: `${token}`},
+      });
+
+      const { session } = checkoutResponse.data;
+      console.log("🚀 ~ handleCancelCheckout ~ session:", session)
+      
+      if (session?.url) {
+        window.location.href = session.url
+      } else {
+        toast.error('Invalid checkout response', {
+          description: 'Could not retrieve checkout URL. Please try again.',
+        })
+      }
+      // await stripe?.redirectToCheckout({ sessionId: session.id });
+    } catch (error: any) {
+      console.error('Error checking out booking:', error);
+      toast.error('Checkout failed', {
+        description: error?.response?.data?.message || 'Please try again later.',
+      })
+    }
+  }
+
   const confirmCancel = async () => {
     if (!showCancelModal) return
     setCancellingId(showCancelModal)
@@ -78,8 +148,15 @@ const MyBookings: React.FC = () => {
       setCancellingId(null)
     }
   }
+// const bookingData:BookingdData[] = bookings?.booking ?? []
+const bookingData: BookingData[] = Array.isArray(bookings?.booking)
+  ? bookings.booking
+  : bookings?.booking
+  ? [bookings.booking]
+  : []
+  
 
-  const filteredBookings = bookings.filter(b =>
+  const filteredBookings = bookingData.filter(b =>
     filter === 'all' || b.booking_status.toLowerCase() === filter
   )
 
@@ -131,7 +208,7 @@ const MyBookings: React.FC = () => {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">{bookings.length}</div>
+                <div className="text-3xl font-bold text-blue-600">{bookingData?.length}</div>
                 <div className="text-gray-600">Total Bookings</div>
               </div>
             </div>
@@ -144,7 +221,7 @@ const MyBookings: React.FC = () => {
             <div className="flex flex-wrap gap-3">
               {(['all', 'pending', 'approved', 'active', 'completed', 'cancelled'] as const).map(key => {
                 const label = key.charAt(0).toUpperCase() + key.slice(1)
-                const count = bookings.filter(b => key === 'all' || b.booking_status.toLowerCase() === key).length
+                const count = bookingData.filter(b => key === 'all' || b.booking_status.toLowerCase() === key).length
                 return (
                   <button
                     key={key}
@@ -239,14 +316,24 @@ const MyBookings: React.FC = () => {
                         </Link>
 
                         {['pending', 'approved'].includes(booking.booking_status.toLowerCase()) && (
+                          <>
                           <button
                             onClick={() => handleCancelClick(booking.booking_id)}
                             disabled={isCancelling}
                             className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
-                          >
+                            >
                             <Trash2 size={18} />
                             Cancel Booking
                           </button>
+                          <button
+                            onClick={() => handleCancelCheckout(booking)}
+                            // disabled={isCancelling}
+                            className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
+                            >
+                            <Trash2 size={18} />
+                            Checkout
+                          </button>
+                            </>
                         )}
                       </div>
                     </div>

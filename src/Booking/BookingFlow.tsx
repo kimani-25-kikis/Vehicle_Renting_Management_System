@@ -323,7 +323,7 @@ const BookingFlow: React.FC = () => {
         console.log('📦 Complete booking payload:', bookingPayload)
         
         const result = await createBooking(bookingPayload).unwrap()
-        navigate(`/booking-confirmation/${result.booking_id}`)
+        navigate(`/booking-confirmation/${result.booking.booking_id}`)
     } catch (error: any) {
         console.error('❌ Booking failed:', error)
         

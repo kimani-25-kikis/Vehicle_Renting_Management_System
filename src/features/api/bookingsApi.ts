@@ -26,7 +26,9 @@ export interface BookingRequest {
 }
 
 export interface BookingResponse {
-  booking_id: number
+  success: boolean
+  booking :{
+booking_id: number
   user_id: number
   vehicle_id: number
   pickup_location: string
@@ -51,6 +53,8 @@ export interface BookingResponse {
   created_at: string
   updated_at: string
 }
+  }
+  
 
 export interface BookingWithDetails extends BookingResponse {
   user_name: string
@@ -103,7 +107,7 @@ export const bookingsApi = createApi({
     }),
 
     // GET LOGGED-IN USER BOOKINGS
-    getMyBookings: builder.query<BookingResponse[], void>({
+    getMyBookings: builder.query<BookingResponse, void>({
       query: () => '/bookings/my-bookings',
       providesTags: ['Bookings'],
     }),
