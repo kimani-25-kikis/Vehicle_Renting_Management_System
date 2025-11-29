@@ -8,6 +8,8 @@ interface User {
     last_name: string
     email: string
     user_type: string
+    phone_number?: string
+     address?: string
 }
 
 interface AuthState {

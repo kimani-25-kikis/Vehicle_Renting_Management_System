@@ -8,6 +8,7 @@ import BookingFlow from './Booking/BookingFlow'
 import BookingConfirmation from './Booking/BookingConfirmation'
 import MyBookings from './Booking/MyBooking'
 import { Toaster } from 'sonner'
+import UserDashboard from './UserDashboard/userDashboard'
 
 function App() {
   const router = createBrowserRouter([
@@ -43,6 +44,10 @@ function App() {
       path: "/my-bookings",
      element: <MyBookings  />
     },
+    {
+      path: "/dashboard",
+      element: <UserDashboard />
+    }
   ])
 
   return (
