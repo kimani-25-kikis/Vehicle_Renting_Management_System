@@ -300,9 +300,9 @@ const BookingFlow: React.FC = () => {
             vehicle_id: Number(vehicleId),
             pickup_location: bookingData.pickupLocation,
             return_location: bookingData.returnLocation,
-            pickup_date: bookingData.pickupDate,  // When they pick up
-            return_date: bookingData.returnDate,  // When they return
-            booking_date: new Date().toISOString(), // When booking was made
+            pickup_date: bookingData.pickupDate,
+            return_date: bookingData.returnDate,
+            booking_date: new Date().toISOString(),
             total_amount: tripDetails?.total || 0,
             
             // Driver License Info
@@ -322,14 +322,33 @@ const BookingFlow: React.FC = () => {
 
         console.log('📦 Complete booking payload:', bookingPayload)
         
-        const result = await createBooking(bookingPayload).unwrap()
-        navigate(`/booking-confirmation/${result.booking.booking_id}`)
+        // Use type assertion to handle the API response structure mismatch
+        const result = await createBooking(bookingPayload).unwrap() as any
+        
+        // Extract booking ID from the actual API response structure
+        // Your API returns: { success: true, message: string, data: any, booking_id: number }
+        const bookingId = result.booking_id
+        
+        if (bookingId) {
+            console.log('✅ Booking ID found:', bookingId)
+            navigate(`/booking-confirmation/${bookingId}`)
+        } else {
+            console.error('❌ No booking ID found in response:', result)
+            // Fallback: redirect to bookings list
+            navigate('/my-bookings')
+        }
+        
     } catch (error: any) {
         console.error('❌ Booking failed:', error)
         
         if (error.data) {
             console.error('🔍 Server error response:', error.data)
             alert(`Booking failed: ${error.data.error || 'Please check required fields'}`)
+        } else if (error.message) {
+            console.error('🔍 Error message:', error.message)
+            alert(`Booking failed: ${error.message}`)
+        } else {
+            alert('Booking failed: Unknown error occurred')
         }
     }
 }

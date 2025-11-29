@@ -6,6 +6,7 @@ import {
 } from '../features/api/bookingsApi'
 import { useGetVehicleByIdQuery } from '../features/api/vehiclesApi'
 import { useUpdateUsersDetailsMutation } from '../features/api/UserApi'
+import { useCreateSupportTicketMutation } from '../features/api/supportApi'
 import { 
   Calendar, MapPin, Car, Clock, CheckCircle, 
   XCircle, Loader, ArrowLeft, Eye, Trash2,
@@ -95,7 +96,6 @@ const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
         email: personalInfo.email,
         phone_number: personalInfo.phone_number,
         address: personalInfo.address
-        // Don't include password here unless you have a separate password change form
       }
 
       await updateUser({
@@ -604,6 +604,23 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
     booking_id: 0
   })
 
+  // Use RTK Query mutation
+  const [createSupportTicket, { isLoading: isSubmitting }] = useCreateSupportTicketMutation()
+
+  // Reset form when tab changes
+  const handleTabChange = (tab: 'damage' | 'general' | 'technical') => {
+    setActiveSupportTab(tab)
+    
+    // Reset form with appropriate type
+    setSupportForm({
+      subject: '',
+      description: '',
+      type: tab === 'damage' ? 'damage_report' : 
+             tab === 'general' ? 'general_inquiry' : 'technical_issue',
+      booking_id: 0
+    })
+  }
+
   const handleSupportSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -624,29 +641,40 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
     }
 
     try {
-      const token = localStorage.getItem('token')
       const payload = {
         subject: supportForm.subject,
         description: supportForm.description,
         type: supportForm.type,
-        booking_id: supportForm.type === 'damage_report' ? supportForm.booking_id : undefined
+        // Only include booking_id for damage reports
+        ...(supportForm.type === 'damage_report' && { booking_id: supportForm.booking_id })
       }
 
-      await axios.post(`${apiDomain}tickets`, payload, {
-        headers: { Authorization: `${token}` }
-      })
+      console.log("📤 Sending support ticket:", payload)
+
+      // Use RTK Query instead of axios
+      await createSupportTicket(payload).unwrap()
 
       toast.success('Support ticket submitted successfully!')
+      
+      // Reset form after successful submission
       setSupportForm({ 
         subject: '', 
         description: '', 
-        type: 'damage_report',
+        type: activeSupportTab === 'damage' ? 'damage_report' : 
+               activeSupportTab === 'general' ? 'general_inquiry' : 'technical_issue',
         booking_id: 0 
       })
     } catch (error: any) {
-      toast.error('Failed to submit ticket', {
-        description: error?.response?.data?.message || 'Please try again'
-      })
+      console.log("🔴 RTK QUERY ERROR:", error)
+      console.log("🔴 ERROR DATA:", error.data)
+      
+      // Show the actual error message from backend
+      const errorMessage = error?.data?.error || 
+                          error?.data?.message || 
+                          error?.message || 
+                          'Please try again'
+      
+      toast.error(`Failed to submit ticket: ${errorMessage}`)
     }
   }
 
@@ -669,10 +697,7 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
       <div className="bg-white rounded-2xl shadow-lg border border-purple-100 p-6">
         <div className="flex gap-4 border-b border-gray-200 pb-4 overflow-x-auto">
           <button
-            onClick={() => {
-              setActiveSupportTab('damage')
-              setSupportForm(prev => ({ ...prev, type: 'damage_report' }))
-            }}
+            onClick={() => handleTabChange('damage')}
             className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeSupportTab === 'damage'
                 ? 'bg-purple-600 text-white shadow-lg'
@@ -683,10 +708,7 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
             Report Damage
           </button>
           <button
-            onClick={() => {
-              setActiveSupportTab('general')
-              setSupportForm(prev => ({ ...prev, type: 'general_inquiry' }))
-            }}
+            onClick={() => handleTabChange('general')}
             className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeSupportTab === 'general'
                 ? 'bg-purple-600 text-white shadow-lg'
@@ -697,10 +719,7 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
             General Inquiry
           </button>
           <button
-            onClick={() => {
-              setActiveSupportTab('technical')
-              setSupportForm(prev => ({ ...prev, type: 'technical_issue' }))
-            }}
+            onClick={() => handleTabChange('technical')}
             className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeSupportTab === 'technical'
                 ? 'bg-purple-600 text-white shadow-lg'
@@ -727,26 +746,29 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
             />
           </div>
 
-          {activeSupportTab === 'damage' && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Select Booking
-              </label>
-              <select
-                value={supportForm.booking_id}
-                onChange={(e) => setSupportForm(prev => ({ ...prev, booking_id: parseInt(e.target.value) }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                required
-              >
-                <option value={0}>Select a completed booking</option>
-                {completedBookings.map(booking => (
-                  <option key={booking.booking_id} value={booking.booking_id}>
-                    Booking #{booking.booking_id} - Vehicle ID: {booking.vehicle_id}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Show booking selection for ALL ticket types but make it optional for non-damage reports */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Select Booking {activeSupportTab === 'damage' && '(Required)'}
+            </label>
+            <select
+              value={supportForm.booking_id}
+              onChange={(e) => setSupportForm(prev => ({ ...prev, booking_id: parseInt(e.target.value) }))}
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              required={activeSupportTab === 'damage'}
+            >
+              <option value={0}>
+                {activeSupportTab === 'damage' 
+                  ? 'Select a completed booking' 
+                  : 'Select a booking (optional)'}
+              </option>
+              {completedBookings.map(booking => (
+                <option key={booking.booking_id} value={booking.booking_id}>
+                  Booking #{booking.booking_id} - Vehicle ID: {booking.vehicle_id}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2">
@@ -779,17 +801,19 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
           <div className="flex gap-4 pt-4">
             <button
               type="submit"
-              className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+              disabled={isSubmitting}
+              className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl disabled:opacity-70 flex items-center gap-2"
             >
               <MessageSquare size={20} />
-              Submit Ticket
+              {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
             </button>
             <button
               type="button"
               onClick={() => setSupportForm({ 
                 subject: '', 
                 description: '', 
-                type: supportForm.type,
+                type: activeSupportTab === 'damage' ? 'damage_report' : 
+                       activeSupportTab === 'general' ? 'general_inquiry' : 'technical_issue',
                 booking_id: 0 
               })}
               className="px-6 py-3 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
@@ -800,7 +824,7 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
         </form>
       </div>
 
-      {/* Contact Information */}
+      {/* Contact Information remains the same */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-lg border border-purple-100 p-6 text-center">
           <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-3">
@@ -840,6 +864,7 @@ const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
 }
 
 const UserDashboard: React.FC = () => {
+  const [createSupportTicket] = useCreateSupportTicketMutation()
   const { data: bookings, isLoading, error } = useGetMyBookingsQuery()
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
   const [activeTab, setActiveTab] = useState<'bookings' | 'profile' | 'reviews' | 'support'>('bookings')
@@ -928,22 +953,20 @@ const UserDashboard: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem('token')
-      await axios.post(`${apiDomain}tickets`, {
+      await createSupportTicket({
         subject: `Damage Report - Booking #${damageReport.bookingId}`,
         description: damageReport.description,
         type: 'damage_report',
         booking_id: damageReport.bookingId
-      }, {
-        headers: { Authorization: `${token}` }
-      });
+      }).unwrap();
 
       toast.success('Damage reported successfully!');
       setShowDamageModal(false);
       setDamageReport({ bookingId: 0, description: '' });
     } catch (error: any) {
+      console.log("🔴 Damage Report Error:", error)
       toast.error('Failed to report damage', {
-        description: error?.response?.data?.message || 'Please try again'
+        description: error?.data?.message || 'Please try again'
       });
     }
   }
