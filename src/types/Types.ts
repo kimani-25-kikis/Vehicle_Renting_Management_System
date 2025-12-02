@@ -20,9 +20,12 @@ export interface User{
     first_name:string;
     last_name:string;
     email:string;
+    password?: string 
     phone_number:string;
+    address?: string
+    updated_at: string;
     created_at:string;
-    user_type:string
+    user_type: 'user' | 'admin'
 }
 
 
@@ -41,12 +44,26 @@ export interface UserStatsResponse{
 
 
 export interface VehicleSpecification {
+    // vehicle_spec_id: number
+    // manufacturer: string
+    // model: string
+    // year: number
+    // fuel_type: string
+    
+    // engine_capacity?: number
+    // transmission: 'Manual' | 'Automatic'
+    // seating_capacity: number
+    // color?: string
+    // features?: string
+    // vehicle_type: 'two-wheeler' | 'four-wheeler'
+    // image_url?: string 
+    // created_at: string
+    // updated_at: string
     vehicle_spec_id: number
     manufacturer: string
     model: string
     year: number
     fuel_type: string
-    
     engine_capacity?: number
     transmission: 'Manual' | 'Automatic'
     seating_capacity: number
@@ -67,6 +84,7 @@ export interface Vehicle {
     created_at: string
     updated_at: string
     specification: VehicleSpecification
+    status?: 'available' | 'rented' | 'maintenance'
 }
 
 export interface VehiclesResponse {
@@ -84,12 +102,20 @@ export interface VehicleQueryParams {
     fuel_type?: string
     transmission?: string
     vehicle_type?: string
+    status?: 'available' | 'rented' | 'maintenance'
+    search?: string
+    manufacturer?: string
+    model?: string
+    min_seating?: number
+    max_seating?: number
+    min_price?: number
+    max_price?: number
 }
 
 export interface DecodedToken {
   user_id: number
   email: string
-  role: string 
+  user_type: string 
   exp: number
   iat: number
 }
@@ -99,7 +125,7 @@ export interface UserContext {
   email: string
   first_name: string
   last_name: string
-  role: string 
+  user_type: string 
 }
 
 export interface BookingRequest {

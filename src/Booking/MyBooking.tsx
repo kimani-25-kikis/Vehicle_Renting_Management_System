@@ -63,6 +63,7 @@ const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
 
 const MyBookings: React.FC = () => {
   const { data: bookings, isLoading, error } = useGetMyBookingsQuery()
+
   console.log("🚀 ~ MyBookings ~ bookings:", bookings)
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
 
@@ -148,12 +149,17 @@ const MyBookings: React.FC = () => {
       setCancellingId(null)
     }
   }
-// const bookingData:BookingdData[] = bookings?.booking ?? []
+
+
 const bookingData: BookingData[] = Array.isArray(bookings?.booking)
   ? bookings.booking
   : bookings?.booking
-  ? [bookings.booking]
+  ? [bookings.booking] 
   : []
+
+console.log("📊 Raw bookings response:", bookings)
+console.log("📈 Processed bookingData:", bookingData)
+
   
 
   const filteredBookings = bookingData.filter(b =>

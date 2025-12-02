@@ -5,6 +5,8 @@ import { apiDomain } from '../../apiDomain/apiDomain';
 export const userApi = createApi({
     reducerPath: 'userApi',
     baseQuery: fetchBaseQuery({ baseUrl: apiDomain }),
+
+    
     tagTypes: ['Users'],
     endpoints: (builder) => ({
 
@@ -29,6 +31,14 @@ export const userApi = createApi({
             }),
             invalidatesTags: ['Users'],
         }),
+        // create user
+                createUser: builder.mutation<{ message: string; user: User }, Partial<User>>({
+                query: (newUser) => ({
+                    url: 'users', // 
+                    method: 'POST',
+                    body: newUser,
+                }),
+                invalidatesTags: ['Users'],                 }),
 
         // Update user_type
         updateUserTypeStatus: builder.mutation<{message: string}, {user_id: number, user_type: string}>({
@@ -59,4 +69,5 @@ export const {
     useUpdateUsersDetailsMutation,
     useUpdateUserTypeStatusMutation,
     useDeleteUserMutation, 
+    useCreateUserMutation,
 } = userApi

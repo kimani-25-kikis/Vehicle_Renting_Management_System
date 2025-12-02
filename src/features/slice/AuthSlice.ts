@@ -8,6 +8,8 @@ interface User {
     last_name: string
     email: string
     user_type: string
+    created_at: string
+    updated_at:string
     phone_number?: string
      address?: string
 }

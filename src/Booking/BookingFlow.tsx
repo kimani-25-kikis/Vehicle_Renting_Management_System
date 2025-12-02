@@ -296,30 +296,29 @@ const BookingFlow: React.FC = () => {
         }
 
         const bookingPayload = {
-            user_id: userId,
-            vehicle_id: Number(vehicleId),
-            pickup_location: bookingData.pickupLocation,
-            return_location: bookingData.returnLocation,
-            pickup_date: bookingData.pickupDate,
-            return_date: bookingData.returnDate,
-            booking_date: new Date().toISOString(),
-            total_amount: tripDetails?.total || 0,
-            
-            // Driver License Info
-            driver_license_number: bookingData.driverLicense.number,
-            driver_license_expiry: bookingData.driverLicense.expiryDate,
-            driver_license_front_url: bookingData.driverLicense.frontImageUrl,
-            driver_license_back_url: bookingData.driverLicense.backImageUrl,
-            
-            // Insurance & Protection
-            insurance_type: bookingData.insuranceType,
-            additional_protection: bookingData.additionalProtection,
-            roadside_assistance: bookingData.roadsideAssistance,
-            
-            // Status (will be 'Pending' by default)
-            booking_status: 'Pending'
-        }
-
+                user_id: userId,
+                vehicle_id: Number(vehicleId),
+                pickup_location: bookingData.pickupLocation,
+                return_location: bookingData.returnLocation,
+                pickup_date: bookingData.pickupDate,
+                return_date: bookingData.returnDate,
+                booking_date: new Date().toISOString().split('T')[0], // Format to YYYY-MM-DD
+                total_amount: tripDetails?.total || 0,
+                
+                // Driver License Info
+                driver_license_number: bookingData.driverLicense.number,
+                driver_license_expiry: bookingData.driverLicense.expiryDate,
+                driver_license_front_url: bookingData.driverLicense.frontImageUrl,
+                driver_license_back_url: bookingData.driverLicense.backImageUrl,
+                
+                // Insurance & Protection
+                insurance_type: bookingData.insuranceType,
+                additional_protection: bookingData.additionalProtection,
+                roadside_assistance: bookingData.roadsideAssistance,
+                
+              
+                booking_status: 'Pending'
+}
         console.log('📦 Complete booking payload:', bookingPayload)
         
         // Use type assertion to handle the API response structure mismatch
@@ -327,8 +326,8 @@ const BookingFlow: React.FC = () => {
         
         // Extract booking ID from the actual API response structure
         // Your API returns: { success: true, message: string, data: any, booking_id: number }
-        const bookingId = result.booking_id
-        
+            const bookingId = result.booking?.booking_id || result.booking_id
+            console.log('✅ Booking response:', result)        
         if (bookingId) {
             console.log('✅ Booking ID found:', bookingId)
             navigate(`/booking-confirmation/${bookingId}`)

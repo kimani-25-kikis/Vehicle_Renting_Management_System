@@ -7,6 +7,8 @@ import { persistReducer, persistStore } from 'redux-persist';
 import { userApi } from '../features/api/UserApi';
 import { bookingsApi } from '../features/api/bookingsApi'
 import { supportApi } from '../features/api/supportApi'
+import { analyticsApi } from '../features/api/analyticApi'
+import { paymentApi } from '../features/api/PaymentApi'
 
 const authPersistConfig = {
     key: 'auth',
@@ -23,6 +25,8 @@ export const store = configureStore({
         [userApi.reducerPath]: userApi.reducer,
         [bookingsApi.reducerPath]: bookingsApi.reducer,
         [supportApi.reducerPath]: supportApi.reducer,
+        [analyticsApi.reducerPath]: analyticsApi.reducer,
+        [paymentApi.reducerPath]: paymentApi.reducer,
         authSlice: persistedAuthReducer
     },
     middleware: (getDefaultMiddleware) =>
@@ -36,6 +40,8 @@ export const store = configureStore({
             userApi.middleware,
             bookingsApi.middleware,
             supportApi.middleware,
+            analyticsApi.middleware,
+            paymentApi.middleware
         ),
 })
 
