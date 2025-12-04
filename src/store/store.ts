@@ -9,6 +9,7 @@ import { bookingsApi } from '../features/api/bookingsApi'
 import { supportApi } from '../features/api/supportApi'
 import { analyticsApi } from '../features/api/analyticApi'
 import { paymentApi } from '../features/api/PaymentApi'
+import { reviewApi } from '../features/api/reviewApi'
 
 const authPersistConfig = {
     key: 'auth',
@@ -27,6 +28,7 @@ export const store = configureStore({
         [supportApi.reducerPath]: supportApi.reducer,
         [analyticsApi.reducerPath]: analyticsApi.reducer,
         [paymentApi.reducerPath]: paymentApi.reducer,
+        [reviewApi.reducerPath]: reviewApi.reducer,
         authSlice: persistedAuthReducer
     },
     middleware: (getDefaultMiddleware) =>
@@ -41,7 +43,8 @@ export const store = configureStore({
             bookingsApi.middleware,
             supportApi.middleware,
             analyticsApi.middleware,
-            paymentApi.middleware
+            paymentApi.middleware,
+            reviewApi.middleware
         ),
 })
 

@@ -26,38 +26,10 @@ import {
 } from '../../features/api/bookingsApi'
 import type { BookingFilters } from '../../features/api/bookingsApi'
 
-// Types based on your backend response
-interface Booking {
-  booking_id: number
-  user_id: number
-  vehicle_id: number
-  user_name: string
-  user_email: string
-  vehicle_manufacturer: string
-  vehicle_model: string
-  pickup_location: string
-  return_location: string
-  pickup_date: string
-  return_date: string
-  booking_date: string
-  total_amount: number
-  booking_status: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled' | 'Rejected'
-  payment_status?: 'Pending' | 'Completed' | 'Failed' | 'Refunded'
-  payment_method?: string
-  transaction_id?: string
-  created_at: string
-  driver_license_number: string
-  driver_license_expiry: string
-  driver_license_front_url: string
-  driver_license_back_url: string
-  insurance_type: string
-  additional_protection: boolean
-  roadside_assistance: boolean
-  verified_by_admin: boolean
-  verified_at: string | null
-  admin_notes: string | null
-  rental_rate?: number
-}
+// FIXED: Import the correct Booking type from API
+import type { BookingResponse } from '../../features/api/bookingsApi'
+
+type Booking = BookingResponse['booking']
 
 // Animated components
 const FloatingCard = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => (
@@ -94,19 +66,28 @@ const GlowingButton = ({ children, onClick, variant = 'primary', className = '',
   </motion.button>
 )
 
-// Download driver license function
+// FIXED: Download driver license function
 const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
   try {
-    const token = localStorage.getItem('persist:auth');
-    if (!token) {
+    // Get token from localStorage
+    const persistAuth = localStorage.getItem('persist:auth');
+    if (!persistAuth) {
       toast.error('Authentication required');
       return false;
     }
 
-    const authState = JSON.parse(token);
+    const authState = JSON.parse(persistAuth);
     const tokenWithBearer = authState.token;
+    
+    if (!tokenWithBearer) {
+      toast.error('No authentication token found');
+      return false;
+    }
+
+    // Clean token
     const actualToken = tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '');
 
+    // FIXED: Use correct endpoint URL (without duplicate /bookings/)
     const response = await fetch(
       `http://localhost:3000/api/bookings/${bookingId}/license/${side}`,
       {
@@ -117,29 +98,54 @@ const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      if (response.status === 404) {
+        toast.error(`License ${side} image not found for this booking`);
+        return false;
+      }
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch license' }));
       throw new Error(error.error || 'Failed to fetch license');
     }
 
-    const data = await response.json();
+    // Check content type for blob or JSON response
+    const contentType = response.headers.get('content-type');
     
-    if (data.success && data.download_url) {
-      // Create a temporary link to trigger download
+    if (contentType?.includes('application/json')) {
+      // Handle JSON response with download URL
+      const data = await response.json();
+      
+      if (data.success && data.url) {
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.download = `driver-license-${side}-${bookingId}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success(`Downloading ${side} license...`);
+        return true;
+      } else {
+        toast.error(data.error || 'Failed to get download URL');
+        return false;
+      }
+    } else {
+      // Handle direct file download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = data.download_url;
-      link.download = data.filename || `driver-license-${side}-${bookingId}.jpg`;
+      link.href = url;
+      link.download = `driver-license-${side}-${bookingId}.jpg`;
       document.body.appendChild(link);
       link.click();
+      window.URL.revokeObjectURL(url);
       document.body.removeChild(link);
       
       toast.success(`Downloading ${side} license...`);
       return true;
-    } else {
-      toast.error(data.error || 'Failed to download license');
-      return false;
     }
   } catch (error: any) {
-    toast.error('Failed to download license: ' + error.message);
+    console.error('Download error:', error);
+    toast.error('Failed to download license: ' + (error.message || 'Unknown error'));
     return false;
   }
 };
@@ -150,32 +156,43 @@ const BookingDetailsModal: React.FC<{
   onClose: () => void
   bookingId: number | null
 }> = ({ isOpen, onClose, bookingId }) => {
-  const { data: bookingData, isLoading, error } = useGetBookingByIdQuery(bookingId!, {
+  const { data: bookingResponse, isLoading, error } = useGetBookingByIdQuery(bookingId!, {
     skip: !bookingId || !isOpen
   })
 
-  const booking = bookingData?.booking || bookingData?.booking
+  // FIXED: Get booking from correct response structure
+  const booking = bookingResponse?.booking;
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch (e) {
+      return dateString;
+    }
   }
 
   const calculateDuration = (start: string, end: string) => {
-    const startDate = new Date(start)
-    const endDate = new Date(end)
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (!start || !end) return 0;
+    try {
+      const startDate = new Date(start)
+      const endDate = new Date(end)
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    } catch (e) {
+      return 0;
+    }
   }
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case 'pending': return 'bg-gradient-to-r from-yellow-500 to-yellow-600'
       case 'confirmed': return 'bg-gradient-to-r from-blue-500 to-blue-600'
       case 'active': return 'bg-gradient-to-r from-green-500 to-green-600'
@@ -187,7 +204,7 @@ const BookingDetailsModal: React.FC<{
   }
 
   const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case 'pending': return <Clock className="text-white" size={16} />
       case 'confirmed': return <CheckCircle className="text-white" size={16} />
       case 'active': return <TrendingUp className="text-white" size={16} />
@@ -262,7 +279,7 @@ const BookingDetailsModal: React.FC<{
                     <Sparkles className="text-blue-400" size={48} />
                   </motion.div>
                   <h3 className="text-xl font-bold text-white mb-2">Loading Booking Details</h3>
-                  <p className="text-gray-400">Fetching cosmic booking data...</p>
+                  <p className="text-gray-400">Fetching booking data...</p>
                 </div>
               ) : error ? (
                 <div className="text-center py-16">
@@ -278,7 +295,7 @@ const BookingDetailsModal: React.FC<{
                 </div>
               ) : booking ? (
                 <div className="space-y-8">
-                  {/* Status and Payment Badges */}
+                  {/* Status Badges */}
                   <div className="flex flex-wrap gap-3">
                     <span className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-white ${getStatusColor(booking.booking_status)}`}>
                       {getStatusIcon(booking.booking_status)}
@@ -306,11 +323,11 @@ const BookingDetailsModal: React.FC<{
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">Name</span>
-                          <span className="font-semibold text-white">{booking.user_name}</span>
+                          <span className="font-semibold text-white">{booking.user_name || 'N/A'}</span>
                         </div>
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">Email</span>
-                          <span className="font-semibold text-white">{booking.user_email}</span>
+                          <span className="font-semibold text-white">{booking.user_email || 'N/A'}</span>
                         </div>
                         <div className="flex items-center justify-between py-3">
                           <span className="text-gray-400">Customer ID</span>
@@ -330,7 +347,7 @@ const BookingDetailsModal: React.FC<{
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">Vehicle</span>
-                          <span className="font-semibold text-white">{booking.vehicle_manufacturer} {booking.vehicle_model}</span>
+                          <span className="font-semibold text-white">{booking.vehicle_manufacturer || 'Unknown'} {booking.vehicle_model || ''}</span>
                         </div>
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">Vehicle ID</span>
@@ -379,7 +396,7 @@ const BookingDetailsModal: React.FC<{
                         <div className="flex items-center justify-between py-3">
                           <span className="text-gray-400">Total Amount</span>
                           <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                            ${booking.total_amount.toFixed(2)}
+                            ${booking.total_amount?.toFixed(2) || '0.00'}
                           </span>
                         </div>
                       </div>
@@ -423,11 +440,11 @@ const BookingDetailsModal: React.FC<{
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">License Number</span>
-                          <span className="font-semibold text-white">{booking.driver_license_number}</span>
+                          <span className="font-semibold text-white">{booking.driver_license_number || 'N/A'}</span>
                         </div>
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">Expiry Date</span>
-                          <span className="font-semibold text-white">{formatDate(booking.driver_license_expiry)}</span>
+                          <span className="font-semibold text-white">{booking.driver_license_expiry ? formatDate(booking.driver_license_expiry) : 'N/A'}</span>
                         </div>
                         <div className="flex gap-3">
                           {booking.driver_license_front_url && (
@@ -463,7 +480,7 @@ const BookingDetailsModal: React.FC<{
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-3 border-b border-gray-700">
                           <span className="text-gray-400">Insurance Type</span>
-                          <span className="font-semibold text-white">{booking.insurance_type}</span>
+                          <span className="font-semibold text-white">{booking.insurance_type || 'N/A'}</span>
                         </div>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
@@ -490,7 +507,13 @@ const BookingDetailsModal: React.FC<{
                     </div>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div className="text-center py-16">
+                  <AlertTriangle className="mx-auto text-yellow-500 mb-4" size={48} />
+                  <h3 className="text-xl font-bold text-yellow-400 mb-2">Booking Not Found</h3>
+                  <p className="text-gray-400">The requested booking could not be found.</p>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -535,23 +558,28 @@ const BookingManagement: React.FC = () => {
 
   // API Hooks
   const { 
-    data: bookingsData, 
+    data: bookingsResponse, 
     isLoading, 
     isError, 
     error,
     refetch 
   } = useGetAllBookingsQuery(filters)
 
-  const { data: statsData } = useGetBookingStatsQuery()
+  // FIXED: Handle stats endpoint gracefully
+  const { 
+    data: statsResponse,
+    isLoading: isLoadingStats,
+    isError: isStatsError 
+  } = useGetBookingStatsQuery()
   
   const [updateBookingStatus, { isLoading: isUpdatingStatus }] = useUpdateBookingStatusMutation()
   const [verifyDriverLicense, { isLoading: isVerifying }] = useVerifyDriverLicenseMutation()
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
   const [exportBookings, { isLoading: isExporting }] = useExportBookingsMutation()
 
-  // Derived data
-  const bookings = bookingsData?.data || []
-  const stats = statsData?.stats
+  // FIXED: Handle API response structure correctly
+  const bookings: Booking[] = bookingsResponse?.data || []
+  const stats = statsResponse?.stats
 
   // Apply frontend filters
   const filteredBookings = bookings.filter(booking => {
@@ -569,6 +597,22 @@ const BookingManagement: React.FC = () => {
     return matchesSearch && matchesStatus && matchesPayment
   })
 
+  // FIXED: Check for duplicate keys
+  const duplicateKeys = new Map<number, number>();
+  bookings.forEach(booking => {
+    duplicateKeys.set(booking.booking_id, (duplicateKeys.get(booking.booking_id) || 0) + 1);
+  });
+
+  const hasDuplicates = Array.from(duplicateKeys.values()).some(count => count > 1);
+  
+  if (hasDuplicates) {
+    console.warn('Duplicate booking IDs found:', 
+      Array.from(duplicateKeys.entries())
+        .filter(([_, count]) => count > 1)
+        .map(([id]) => id)
+    );
+  }
+
   // Handlers
   const handleUpdateStatus = async (bookingId: number, newStatus: Booking['booking_status'], adminNotes?: string) => {
     try {
@@ -583,57 +627,32 @@ const BookingManagement: React.FC = () => {
       setActionMenu(null)
       refetch()
     } catch (error: any) {
-      toast.error(error?.data?.error || 'Failed to update booking status')
+      console.error('Update status error:', error)
+      toast.error(error?.data?.error || error?.data?.message || 'Failed to update booking status')
       setActionMenu(null)
     }
   }
 
-// Replace the handleVerifyLicense function with this:
-// Update the handleVerifyLicense function to this:
-const handleVerifyLicense = async (bookingId: number, verified: boolean, download: boolean = false) => {
-  try {
-    // First, verify the license
-    const result = await verifyDriverLicense({
-      booking_id: bookingId,
-      data: { 
-        verified,
-        admin_notes: `Driver license ${verified ? 'verified' : 'unverified'} by admin`
-        // Don't include download_license if API doesn't support it
-      }
-    }).unwrap();
-    
-    toast.success(`Driver license ${verified ? 'verified' : 'unverified'} for booking #${bookingId}`);
-    
-    // If download is requested, download licenses using the separate download function
-    if (download) {
-      // Find the booking in the current list to get URLs
-      const currentBooking = bookings.find(b => b.booking_id === bookingId);
-      if (currentBooking) {
-        // Download front license
-        if (currentBooking.driver_license_front_url) {
-          await downloadLicense(bookingId, 'front');
+  // FIXED: License verification handler
+  const handleVerifyLicense = async (bookingId: number, verified: boolean) => {
+    try {
+      await verifyDriverLicense({
+        booking_id: bookingId,
+        data: { 
+          verified,
+          admin_notes: `Driver license ${verified ? 'verified' : 'unverified'} by admin`
         }
-        
-        // Download back license after a short delay
-        if (currentBooking.driver_license_back_url) {
-          setTimeout(async () => {
-            await downloadLicense(bookingId, 'back');
-          }, 500);
-        }
-        
-        toast.success('License files downloaded successfully!');
-      } else {
-        toast.info('Booking data not found for download');
-      }
+      }).unwrap()
+      
+      toast.success(`Driver license ${verified ? 'verified' : 'unverified'} for booking #${bookingId}`)
+      setActionMenu(null)
+      refetch()
+    } catch (error: any) {
+      console.error('Verify license error:', error)
+      toast.error(error?.data?.error || error?.data?.message || 'Failed to verify driver license')
+      setActionMenu(null)
     }
-    
-    setActionMenu(null);
-    refetch();
-  } catch (error: any) {
-    toast.error(error?.data?.error || 'Failed to verify driver license');
-    setActionMenu(null);
   }
-};
 
   const handleCancelBooking = async (bookingId: number) => {
     if (!window.confirm('Are you sure you want to cancel this booking?')) return
@@ -644,7 +663,8 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
       setActionMenu(null)
       refetch()
     } catch (error: any) {
-      toast.error(error?.data?.error || 'Failed to cancel booking')
+      console.error('Cancel booking error:', error)
+      toast.error(error?.data?.error || error?.data?.message || 'Failed to cancel booking')
       setActionMenu(null)
     }
   }
@@ -670,6 +690,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
       
       toast.success('Bookings exported successfully')
     } catch (error: any) {
+      console.error('Export error:', error)
       toast.error('Failed to export bookings')
     }
   }
@@ -703,7 +724,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
 
   // Helper functions
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case 'pending': return 'bg-gradient-to-r from-yellow-500 to-yellow-600'
       case 'confirmed': return 'bg-gradient-to-r from-blue-500 to-blue-600'
       case 'active': return 'bg-gradient-to-r from-green-500 to-green-600'
@@ -715,7 +736,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
   }
 
   const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case 'pending': return <Clock className="text-white" size={16} />
       case 'confirmed': return <CheckCircle className="text-white" size={16} />
       case 'active': return <TrendingUp className="text-white" size={16} />
@@ -727,19 +748,29 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
   }
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch (e) {
+      return dateString;
+    }
   }
 
   const calculateDuration = (start: string, end: string) => {
-    const startDate = new Date(start)
-    const endDate = new Date(end)
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (!start || !end) return 0;
+    try {
+      const startDate = new Date(start)
+      const endDate = new Date(end)
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    } catch (e) {
+      return 0;
+    }
   }
 
   // Apply filters when search term changes
@@ -763,8 +794,8 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
           >
             <Sparkles className="text-blue-400" size={48} />
           </motion.div>
-          <h3 className="text-2xl font-bold text-white mb-2">Loading Booking Universe</h3>
-          <p className="text-gray-400">Gathering cosmic booking data...</p>
+          <h3 className="text-2xl font-bold text-white mb-2">Loading Bookings</h3>
+          <p className="text-gray-400">Fetching booking data...</p>
         </div>
       </div>
     )
@@ -780,20 +811,23 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
           className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 border border-red-700/30 shadow-2xl max-w-md"
         >
           <AlertTriangle className="mx-auto text-red-500 mb-4" size={64} />
-          <h3 className="text-2xl font-bold text-red-400 mb-2 text-center">Galactic Connection Lost</h3>
+          <h3 className="text-2xl font-bold text-red-400 mb-2 text-center">Connection Error</h3>
           <p className="text-gray-400 text-center mb-6">
-            Failed to connect to the booking universe. The space-time continuum might be disrupted.
+            Failed to connect to the server. Please check your connection.
           </p>
+          <div className="text-sm text-gray-500 mb-4 p-3 bg-gray-800/50 rounded-lg">
+            Error: {error?.toString()}
+          </div>
           <div className="flex flex-col gap-3">
             <GlowingButton onClick={() => refetch()} className="py-4">
               <RefreshCw size={20} />
-              Reconnect to Booking Universe
+              Retry Connection
             </GlowingButton>
             <button 
               onClick={() => window.location.reload()}
               className="px-6 py-3 bg-gray-800 text-gray-300 rounded-2xl font-semibold hover:bg-gray-700 transition-colors border border-gray-700"
             >
-              Reload Space Station
+              Reload Page
             </button>
           </div>
         </motion.div>
@@ -803,29 +837,6 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-6">
-      {/* Animated Background Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-blue-500/20 rounded-full"
-            initial={{ 
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight 
-            }}
-            animate={{ 
-              y: [null, -50, 50],
-              opacity: [0.2, 0.8, 0.2]
-            }}
-            transition={{ 
-              duration: 3 + Math.random() * 2,
-              repeat: Infinity,
-              delay: i * 0.1 
-            }}
-          />
-        ))}
-      </div>
-
       <div className="relative space-y-6">
         {/* Header with Stats */}
         <FloatingCard delay={0.1}>
@@ -838,13 +849,13 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                   </div>
                   <div>
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                      Booking Galaxy
+                      Booking Management
                     </h1>
-                    <p className="text-gray-400 mt-1">Manage your cosmic booking operations</p>
+                    <p className="text-gray-400 mt-1">Manage all bookings in the system</p>
                   </div>
                 </div>
                 
-                {/* Animated Stats */}
+                {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                   <motion.div 
                     whileHover={{ scale: 1.05 }}
@@ -853,7 +864,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-gray-400 text-sm">Total Bookings</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">{stats?.total_bookings || 0}</h3>
+                        <h3 className="text-2xl font-bold text-white mt-1">{bookings.length}</h3>
                       </div>
                       <Calendar className="text-blue-400" size={20} />
                     </div>
@@ -866,7 +877,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-gray-400 text-sm">Active Rentals</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">{stats?.active_rentals || 0}</h3>
+                        <h3 className="text-2xl font-bold text-white mt-1">{bookings.filter(b => b.booking_status === 'Active').length}</h3>
                       </div>
                       <TrendingUp className="text-green-400" size={20} />
                     </div>
@@ -874,27 +885,29 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                   
                   <motion.div 
                     whileHover={{ scale: 1.05 }}
-                    className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 border border-gray-700"
+                    className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-2xl p-4 border border-yellow-500/30"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-gray-400 text-sm">Today's Revenue</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">${stats?.today_revenue?.toFixed(0) || '0'}</h3>
+                        <p className="text-yellow-400 text-sm">Pending</p>
+                        <h3 className="text-2xl font-bold text-white mt-1">{bookings.filter(b => b.booking_status === 'Pending').length}</h3>
                       </div>
-                      <DollarSign className="text-yellow-400" size={20} />
+                      <Clock className="text-yellow-400" size={20} />
                     </div>
                   </motion.div>
                   
                   <motion.div 
                     whileHover={{ scale: 1.05 }}
-                    className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 border border-gray-700"
+                    className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-2xl p-4 border border-green-500/30"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-gray-400 text-sm">Pending Approval</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">{stats?.pending_approvals || 0}</h3>
+                        <p className="text-green-400 text-sm">Revenue</p>
+                        <h3 className="text-2xl font-bold text-white mt-1">
+                          ${bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0).toFixed(0)}
+                        </h3>
                       </div>
-                      <Clock className="text-orange-400" size={20} />
+                      <DollarSign className="text-green-400" size={20} />
                     </div>
                   </motion.div>
                 </div>
@@ -907,7 +920,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                   className="px-6 py-4 flex items-center gap-2"
                 >
                   <DownloadCloud size={20} />
-                  {isExporting ? 'Exporting...' : 'Export Universe'}
+                  {isExporting ? 'Exporting...' : 'Export Bookings'}
                 </GlowingButton>
                 
                 <GlowingButton 
@@ -916,7 +929,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                   className="px-6 py-4 flex items-center gap-2"
                 >
                   <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
-                  Refresh Universe
+                  Refresh Data
                 </GlowingButton>
               </div>
             </div>
@@ -944,7 +957,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <input
                 type="text"
-                placeholder="Search across the booking galaxy..."
+                placeholder="Search bookings by customer, vehicle, license number..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -1019,7 +1032,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                         className="px-6 py-3"
                       >
                         <Filter size={16} />
-                        Apply Cosmic Filters
+                        Apply Filters
                       </GlowingButton>
                       <button
                         onClick={handleClearFilters}
@@ -1032,36 +1045,26 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Selected Bookings */}
-            {selectedBookings.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 pt-4 border-t border-gray-700"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl font-semibold border border-blue-500/30">
-                      {selectedBookings.length} selected
-                    </span>
-                    <button
-                      onClick={() => setSelectedBookings([])}
-                      className="text-gray-400 hover:text-white transition-colors text-sm"
-                    >
-                      Clear Selection
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </div>
         </FloatingCard>
 
         {/* Bookings List */}
         <div className="space-y-4">
+          {/* FIXED: Show warning if duplicates found */}
+          {hasDuplicates && (
+            <div className="bg-gradient-to-r from-orange-900/20 to-red-900/20 rounded-3xl p-4 border border-orange-700/30">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="text-orange-400" size={20} />
+                <p className="text-orange-300 text-sm">
+                  Warning: Duplicate booking IDs detected. This may cause display issues.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* FIXED: Ensure unique keys */}
           {filteredBookings.map((booking, index) => (
-          <FloatingCard key={`${booking.booking_id}-${index}-${Date.now()}`}>
+            <FloatingCard key={`${booking.booking_id}-${index}`}>
               <motion.div
                 whileHover={{ y: -5 }}
                 className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 border border-gray-700 shadow-2xl group hover:border-blue-500/30 transition-all duration-300"
@@ -1083,18 +1086,6 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                           {getStatusIcon(booking.booking_status)}
                           {booking.booking_status}
                         </span>
-                        <input
-                          type="checkbox"
-                          checked={selectedBookings.includes(booking.booking_id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedBookings(prev => [...prev, booking.booking_id])
-                            } else {
-                              setSelectedBookings(prev => prev.filter(id => id !== booking.booking_id))
-                            }
-                          }}
-                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-                        />
                       </div>
                     </div>
 
@@ -1105,8 +1096,8 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                           <User className="text-blue-400" size={20} />
                         </div>
                         <div>
-                          <div className="font-semibold text-white">{booking.user_name}</div>
-                          <div className="text-gray-400 text-sm">{booking.user_email}</div>
+                          <div className="font-semibold text-white">{booking.user_name || 'Unknown Customer'}</div>
+                          <div className="text-gray-400 text-sm">{booking.user_email || 'No email'}</div>
                         </div>
                       </div>
 
@@ -1115,7 +1106,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                           <Car className="text-green-400" size={20} />
                         </div>
                         <div>
-                          <div className="font-semibold text-white">{booking.vehicle_manufacturer} {booking.vehicle_model}</div>
+                          <div className="font-semibold text-white">{booking.vehicle_manufacturer || 'Unknown'} {booking.vehicle_model || ''}</div>
                           <div className="text-gray-400 text-sm">Vehicle #{booking.vehicle_id}</div>
                         </div>
                       </div>
@@ -1126,7 +1117,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                         </div>
                         <div>
                           <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                            ${booking.total_amount.toFixed(2)}
+                            ${booking.total_amount?.toFixed(2) || '0.00'}
                           </div>
                           <div className="text-gray-400 text-sm">Total amount</div>
                         </div>
@@ -1161,16 +1152,7 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                       </div>
                       
                       <div className="flex gap-2">
-                        {booking.additional_protection && (
-                          <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded-lg text-xs font-medium">
-                            Additional Protection
-                          </span>
-                        )}
-                        {booking.roadside_assistance && (
-                          <span className="bg-green-500/10 text-green-400 px-2 py-1 rounded-lg text-xs font-medium">
-                            Roadside Assistance
-                          </span>
-                        )}
+                        <span className="text-gray-400 text-sm">License #: {booking.driver_license_number || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -1207,121 +1189,113 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
                             {!booking.verified_by_admin ? (
                               <>
                                 <button 
-                                  onClick={() => handleVerifyLicense(booking.booking_id, true, true)}
-                                  className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white"
-                                >
-                                  <Shield size={16} />
-                                  Verify & Download License
-                                </button>
-                                <button 
-                                  onClick={() => handleVerifyLicense(booking.booking_id, true, false)}
-                                  className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white"
+                                  onClick={() => handleVerifyLicense(booking.booking_id, true)}
+                                  className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white border-b border-gray-700"
                                 >
                                   <CheckCircle size={16} />
-                                  Verify License Only
+                                  Verify License
                                 </button>
                               </>
                             ) : (
                               <button 
-                                onClick={() => handleVerifyLicense(booking.booking_id, false, false)}
-                                className="w-full text-left px-4 py-3 hover:bg-orange-500/10 flex items-center gap-2 text-white"
-                              >
-                                <XCircle size={16} />
-                                Unverify License
-                              </button>
-                            )}
-                            
-                            {booking.driver_license_front_url && (
-                              <button 
-                                onClick={() => downloadLicense(booking.booking_id, 'front')}
-                                className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white"
-                              >
-                                <FileImage size={16} />
-                                Download Front License
-                              </button>
-                            )}
-                            
-                            {booking.driver_license_back_url && (
-                              <button 
-                                onClick={() => downloadLicense(booking.booking_id, 'back')}
-                                className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white"
-                              >
-                                <FileImage size={16} />
-                                Download Back License
-                              </button>
-                            )}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
+                                onClick={() => handleVerifyLicense(booking.booking_id, false)}
+                                className="w-full text-left px-4 py-3 hover:bg-orange-500/10 flex items-center gap-2 text-white border-b border-gray-700"
+                                >
+                                  <XCircle size={16} />
+                                  Unverify License
+                                </button>
+                              )}
+                              
+                              {booking.driver_license_front_url && (
+                                <button 
+                                  onClick={() => downloadLicense(booking.booking_id, 'front')}
+                                  className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white border-b border-gray-700"
+                                >
+                                  <FileImage size={16} />
+                                  Download Front License
+                                </button>
+                              )}
+                              
+                              {booking.driver_license_back_url && (
+                                <button 
+                                  onClick={() => downloadLicense(booking.booking_id, 'back')}
+                                  className="w-full text-left px-4 py-3 hover:bg-blue-500/10 flex items-center gap-2 text-white"
+                                >
+                                  <FileImage size={16} />
+                                  Download Back License
+                                </button>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
 
-                    {/* Booking Status Actions */}
-                    <div className="flex flex-col gap-2">
-                      {booking.booking_status === 'Pending' && (
-                        <>
+                      {/* Booking Status Actions */}
+                      <div className="flex flex-col gap-2">
+                        {booking.booking_status === 'Pending' && (
+                          <>
+                            <GlowingButton
+                              onClick={() => handleUpdateStatus(booking.booking_id, 'Confirmed')}
+                              variant="success"
+                              className="py-2 text-sm"
+                              disabled={isUpdatingStatus}
+                            >
+                              <CheckCircle size={14} />
+                              Confirm Booking
+                            </GlowingButton>
+                            <GlowingButton
+                              onClick={() => handleUpdateStatus(booking.booking_id, 'Rejected', 'Booking rejected by admin')}
+                              variant="danger"
+                              className="py-2 text-sm"
+                              disabled={isUpdatingStatus}
+                            >
+                              <XCircle size={14} />
+                              Reject Booking
+                            </GlowingButton>
+                          </>
+                        )}
+                        {booking.booking_status === 'Confirmed' && (
                           <GlowingButton
-                            onClick={() => handleUpdateStatus(booking.booking_id, 'Confirmed')}
+                            onClick={() => handleUpdateStatus(booking.booking_id, 'Active')}
+                            variant="success"
+                            className="py-2 text-sm"
+                            disabled={isUpdatingStatus}
+                          >
+                            <TrendingUp size={14} />
+                            Mark as Active
+                          </GlowingButton>
+                        )}
+                        {booking.booking_status === 'Active' && (
+                          <GlowingButton
+                            onClick={() => handleUpdateStatus(booking.booking_id, 'Completed')}
                             variant="success"
                             className="py-2 text-sm"
                             disabled={isUpdatingStatus}
                           >
                             <CheckCircle size={14} />
-                            Confirm Booking
+                            Complete Rental
                           </GlowingButton>
+                        )}
+                        {(booking.booking_status === 'Pending' || booking.booking_status === 'Confirmed') && (
                           <GlowingButton
-                            onClick={() => handleUpdateStatus(booking.booking_id, 'Rejected', 'Booking rejected by admin')}
+                            onClick={() => handleCancelBooking(booking.booking_id)}
                             variant="danger"
                             className="py-2 text-sm"
-                            disabled={isUpdatingStatus}
+                            disabled={isCancelling}
                           >
                             <XCircle size={14} />
-                            Reject Booking
+                            {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
                           </GlowingButton>
-                        </>
-                      )}
-                      {booking.booking_status === 'Confirmed' && (
-                        <GlowingButton
-                          onClick={() => handleUpdateStatus(booking.booking_id, 'Active')}
-                          variant="success"
-                          className="py-2 text-sm"
-                          disabled={isUpdatingStatus}
-                        >
-                          <TrendingUp size={14} />
-                          Mark as Active
-                        </GlowingButton>
-                      )}
-                      {booking.booking_status === 'Active' && (
-                        <GlowingButton
-                          onClick={() => handleUpdateStatus(booking.booking_id, 'Completed')}
-                          variant="success"
-                          className="py-2 text-sm"
-                          disabled={isUpdatingStatus}
-                        >
-                          <CheckCircle size={14} />
-                          Complete Rental
-                        </GlowingButton>
-                      )}
-                      {(booking.booking_status === 'Pending' || booking.booking_status === 'Confirmed') && (
-                        <GlowingButton
-                          onClick={() => handleCancelBooking(booking.booking_id)}
-                          variant="danger"
-                          className="py-2 text-sm"
-                          disabled={isCancelling}
-                        >
-                          <XCircle size={14} />
-                          {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
-                        </GlowingButton>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            </FloatingCard>
-          ))}
-        </div>
+                </motion.div>
+              </FloatingCard>
+            ))}
 
         {/* Empty State */}
-        {filteredBookings.length === 0 && bookings.length > 0 && (
+        {filteredBookings.length === 0 && (
           <FloatingCard>
             <div className="text-center py-16">
               <motion.div
@@ -1331,32 +1305,23 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
               >
                 <Calendar className="text-white" size={40} />
               </motion.div>
-              <h3 className="text-3xl font-bold text-white mb-3">No Cosmic Matches Found</h3>
-              <p className="text-gray-400 mb-8">Try adjusting your search filters to explore the booking universe</p>
-              <GlowingButton
-                onClick={handleClearFilters}
-                className="px-8 py-4 text-lg"
-              >
-                <Filter size={20} className="mr-2" />
-                Reset All Filters
-              </GlowingButton>
-            </div>
-          </FloatingCard>
-        )}
-
-        {/* No Bookings State */}
-        {bookings.length === 0 && (
-          <FloatingCard>
-            <div className="text-center py-16">
-              <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6"
-              >
-                <Calendar className="text-white" size={40} />
-              </motion.div>
-              <h3 className="text-3xl font-bold text-white mb-3">Welcome to Booking Galaxy!</h3>
-              <p className="text-gray-400 mb-8">Your booking universe is empty. The first cosmic journey awaits!</p>
+              <h3 className="text-3xl font-bold text-white mb-3">
+                {bookings.length === 0 ? 'No Bookings Found' : 'No Matching Bookings'}
+              </h3>
+              <p className="text-gray-400 mb-8">
+                {bookings.length === 0 
+                  ? 'There are no bookings in the system yet.' 
+                  : 'Try adjusting your search filters to find bookings.'}
+              </p>
+              {bookings.length > 0 && (
+                <GlowingButton
+                  onClick={handleClearFilters}
+                  className="px-8 py-4 text-lg"
+                >
+                  <Filter size={20} className="mr-2" />
+                  Reset All Filters
+                </GlowingButton>
+              )}
             </div>
           </FloatingCard>
         )}
@@ -1372,7 +1337,9 @@ const handleVerifyLicense = async (bookingId: number, verified: boolean, downloa
         bookingId={selectedBookingId}
       />
     </div>
+  </div>
   )
 }
 
-export default BookingManagement
+
+export default BookingManagement;

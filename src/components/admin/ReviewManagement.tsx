@@ -4,194 +4,236 @@ import {
   Star, Search, Filter, CheckCircle, XCircle, 
   Eye, MessageSquare, User, Car, Calendar,
   MoreVertical, RefreshCw, TrendingUp, AlertTriangle,
-  ThumbsUp, ThumbsDown, Shield, Download,
-  BarChart3, FilterX, Mail
+  ThumbsUp, ThumbsDown, Shield, Download, Home, Globe,
+  BarChart3, FilterX, Mail, Clock, Loader
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  useGetAllReviewsQuery,
+  useApproveReviewMutation,
+  useRejectReviewMutation,
+  useDeleteReviewMutation,
+  useAddAdminResponseMutation,
+  useFlagReviewMutation,
+  useGetReviewCountsQuery,
+  useMarkForHomepageMutation,
+  useUnmarkFromHomepageMutation,
+  type Review
+} from '../../features/api/reviewApi'
 
-interface Review {
-  review_id: number
-  booking_id: number
-  user_id: number
+interface ReviewWithDetails extends Review {
+  vehicle_name: string
   user_name: string
   user_email: string
-  vehicle_id: number
-  vehicle_name: string
-  rating: number
-  comment: string
-  is_approved: boolean
   is_flagged: boolean
-  created_at: string
-  admin_notes?: string
-  response?: string
   helpful_count: number
+  show_on_homepage?: boolean
 }
 
 const ReviewManagement: React.FC = () => {
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [loading, setLoading] = useState(true)
+  // RTK Query hooks
+  const { 
+    data: reviewsResponse, 
+    isLoading, 
+    error, 
+    refetch 
+  } = useGetAllReviewsQuery()
+  
+  const { data: countsData } = useGetReviewCountsQuery()
+  const [approveReview] = useApproveReviewMutation()
+  const [rejectReview] = useRejectReviewMutation()
+  const [deleteReview] = useDeleteReviewMutation()
+  const [addAdminResponse] = useAddAdminResponseMutation()
+  const [flagReview] = useFlagReviewMutation()
+  const [markForHomepage] = useMarkForHomepageMutation()
+  const [unmarkFromHomepage] = useUnmarkFromHomepageMutation()
+
+  // Local state
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'pending' | 'flagged'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'pending' | 'flagged' | 'on_homepage'>('all')
   const [ratingFilter, setRatingFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all')
   const [selectedReviews, setSelectedReviews] = useState<number[]>([])
   const [actionMenu, setActionMenu] = useState<number | null>(null)
   const [responseText, setResponseText] = useState('')
+  const [rejectNotes, setRejectNotes] = useState('')
+  const [rejectModalOpen, setRejectModalOpen] = useState<number | null>(null)
+  const [homepageModalOpen, setHomepageModalOpen] = useState<number | null>(null)
+  const [selectedForHomepage, setSelectedForHomepage] = useState<number[]>([])
 
-  // Mock data - replace with actual API call
-  useEffect(() => {
-    const mockReviews: Review[] = [
-      {
-        review_id: 1,
-        booking_id: 1,
-        user_id: 1,
-        user_name: 'John Doe',
-        user_email: 'john.doe@example.com',
-        vehicle_id: 1,
-        vehicle_name: 'Toyota Camry 2023',
-        rating: 5,
-        comment: 'Excellent service! The car was clean, fuel full, and the pickup process was smooth. Will definitely rent again.',
-        is_approved: true,
-        is_flagged: false,
-        created_at: '2024-03-20T14:30:00',
-        helpful_count: 12
-      },
-      {
-        review_id: 2,
-        booking_id: 2,
-        user_id: 2,
-        user_name: 'Sarah Wilson',
-        user_email: 'sarah.wilson@example.com',
-        vehicle_id: 2,
-        vehicle_name: 'Mercedes E-Class 2024',
-        rating: 4,
-        comment: 'Great vehicle and good service. The car had a small scratch that wasn\'t mentioned, but otherwise perfect.',
-        is_approved: true,
-        is_flagged: false,
-        created_at: '2024-03-18T10:15:00',
-        helpful_count: 8
-      },
-      {
-        review_id: 3,
-        booking_id: 3,
-        user_id: 3,
-        user_name: 'Mike Johnson',
-        user_email: 'mike.johnson@example.com',
-        vehicle_id: 3,
-        vehicle_name: 'Land Rover Range Rover',
-        rating: 1,
-        comment: 'Terrible experience! Car was dirty and had mechanical issues. Staff was unhelpful. Never renting from here again!!!',
-        is_approved: false,
-        is_flagged: true,
-        created_at: '2024-03-21T09:45:00',
-        admin_notes: 'Customer reported issues - needs investigation',
-        helpful_count: 2
-      },
-      {
-        review_id: 4,
-        booking_id: 4,
-        user_id: 4,
-        user_name: 'Emily Davis',
-        user_email: 'emily.davis@example.com',
-        vehicle_id: 1,
-        vehicle_name: 'Toyota Camry 2023',
-        rating: 5,
-        comment: 'Perfect rental experience from start to finish. The online booking was easy, and the vehicle exceeded expectations.',
-        is_approved: false,
-        is_flagged: false,
-        created_at: '2024-03-22T16:20:00',
-        helpful_count: 5
-      },
-      {
-        review_id: 5,
-        booking_id: 5,
-        user_id: 5,
-        user_name: 'David Brown',
-        user_email: 'david.brown@example.com',
-        vehicle_id: 2,
-        vehicle_name: 'Mercedes E-Class 2024',
-        rating: 3,
-        comment: 'Average experience. Car was okay but pickup took longer than expected. Could improve the waiting process.',
-        is_approved: false,
-        is_flagged: false,
-        created_at: '2024-03-19T11:30:00',
-        helpful_count: 3
+  // Transform API data to match component interface
+  const reviews: ReviewWithDetails[] = React.useMemo(() => {
+    if (!reviewsResponse?.reviews) return []
+    
+    return reviewsResponse.reviews.map(review => {
+      const vehicleName = `${review.manufacturer || 'Unknown'} ${review.model || ''}`.trim()
+      const userName = `${review.first_name || ''} ${review.last_name || ''}`.trim() || 'Anonymous'
+      const userEmail = review.email || ''
+      const showOnHomepage = (review as any).show_on_homepage || false
+      
+      return {
+        ...review,
+        review_id: review.review_id,
+        booking_id: review.booking_id,
+        user_id: review.user_id,
+        user_name: userName,
+        user_email: userEmail,
+        vehicle_id: review.vehicle_id,
+        vehicle_name: vehicleName,
+        rating: review.rating,
+        comment: review.comment,
+        is_approved: review.is_approved,
+        is_flagged: !review.is_approved && !!review.admin_notes,
+        show_on_homepage: showOnHomepage,
+        created_at: review.created_at,
+        admin_notes: review.admin_notes,
+        helpful_count: 0,
       }
-    ]
-    setReviews(mockReviews)
-    setLoading(false)
-  }, [])
+    })
+  }, [reviewsResponse])
 
+  // Filter reviews
   const filteredReviews = reviews.filter(review => {
     const matchesSearch = 
-      review.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.vehicle_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.comment.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.booking_id.toString().includes(searchTerm)
+      review.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      review.vehicle_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      review.comment?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      review.booking_id?.toString().includes(searchTerm) ||
+      review.review_id?.toString().includes(searchTerm)
     
     const matchesStatus = statusFilter === 'all' || 
       (statusFilter === 'approved' && review.is_approved) ||
-      (statusFilter === 'pending' && !review.is_approved && !review.is_flagged) ||
-      (statusFilter === 'flagged' && review.is_flagged)
+      (statusFilter === 'pending' && !review.is_approved && !review.admin_notes) ||
+      (statusFilter === 'flagged' && !review.is_approved && !!review.admin_notes) ||
+      (statusFilter === 'on_homepage' && review.show_on_homepage)
     
     const matchesRating = ratingFilter === 'all' || review.rating.toString() === ratingFilter
     
     return matchesSearch && matchesStatus && matchesRating
   })
 
-  const handleApproveReview = (reviewId: number) => {
-    toast.success(`Review #${reviewId} approved`)
-    setReviews(prev => prev.map(review => 
-      review.review_id === reviewId ? { ...review, is_approved: true, is_flagged: false } : review
-    ))
-    setActionMenu(null)
+  // Handle approve review
+  const handleApproveReview = async (reviewId: number) => {
+    try {
+      await approveReview(reviewId).unwrap()
+      toast.success(`Review #${reviewId} approved successfully`)
+      
+      // Show option to post to homepage
+      setHomepageModalOpen(reviewId)
+    } catch (error: any) {
+      toast.error('Failed to approve review', {
+        description: error?.data?.error || 'Please try again'
+      })
+    } finally {
+      setActionMenu(null)
+    }
   }
 
-  const handleRejectReview = (reviewId: number) => {
-    toast.success(`Review #${reviewId} rejected`)
-    setReviews(prev => prev.filter(review => review.review_id !== reviewId))
-    setActionMenu(null)
+  // Handle mark for homepage
+  const handleMarkForHomepage = async (reviewId: number) => {
+    try {
+      await markForHomepage(reviewId).unwrap()
+      toast.success(`Review #${reviewId} posted to homepage`)
+      setHomepageModalOpen(null)
+    } catch (error: any) {
+      toast.error('Failed to post to homepage', {
+        description: error?.data?.error || 'Please try again'
+      })
+    }
   }
 
-  const handleFlagReview = (reviewId: number) => {
-    toast.success(`Review #${reviewId} flagged for review`)
-    setReviews(prev => prev.map(review => 
-      review.review_id === reviewId ? { ...review, is_flagged: true, is_approved: false } : review
-    ))
-    setActionMenu(null)
+  // Handle unmark from homepage
+  const handleUnmarkFromHomepage = async (reviewId: number) => {
+    try {
+      await unmarkFromHomepage(reviewId).unwrap()
+      toast.success(`Review #${reviewId} removed from homepage`)
+    } catch (error: any) {
+      toast.error('Failed to remove from homepage', {
+        description: error?.data?.error || 'Please try again'
+      })
+    }
   }
 
-  const handleAddResponse = (reviewId: number) => {
+  // Handle reject review
+  const handleRejectReview = async (reviewId: number) => {
+    if (!rejectNotes.trim()) {
+      toast.error('Please provide a reason for rejection')
+      return
+    }
+
+    try {
+      await rejectReview({ 
+        review_id: reviewId, 
+        admin_notes: rejectNotes 
+      }).unwrap()
+      
+      toast.success(`Review #${reviewId} rejected`)
+      setRejectNotes('')
+      setRejectModalOpen(null)
+    } catch (error: any) {
+      toast.error('Failed to reject review', {
+        description: error?.data?.error || 'Please try again'
+      })
+    }
+  }
+
+  // Handle add response
+  const handleAddResponse = async (reviewId: number) => {
     if (!responseText.trim()) {
       toast.error('Please enter a response')
       return
     }
 
-    toast.success('Response added to review')
-    setReviews(prev => prev.map(review => 
-      review.review_id === reviewId ? { ...review, response: responseText } : review
-    ))
-    setResponseText('')
-    setActionMenu(null)
+    try {
+      await addAdminResponse({ 
+        review_id: reviewId, 
+        admin_notes: responseText 
+      }).unwrap()
+      
+      toast.success('Response added to review')
+      setResponseText('')
+      setActionMenu(null)
+    } catch (error: any) {
+      toast.error('Failed to add response', {
+        description: error?.data?.error || 'Please try again'
+      })
+    }
   }
 
-  const getStatusColor = (review: Review) => {
+  // Handle delete review
+  const handleDeleteReview = async (reviewId: number) => {
+    try {
+      await deleteReview(reviewId).unwrap()
+      toast.success(`Review #${reviewId} deleted`)
+    } catch (error: any) {
+      toast.error('Failed to delete review', {
+        description: error?.data?.error || 'Please try again'
+      })
+    }
+  }
+
+  // Status helpers
+  const getStatusColor = (review: ReviewWithDetails) => {
+    if (review.show_on_homepage) return 'bg-purple-100 text-purple-800 border-purple-200'
     if (review.is_approved) return 'bg-green-100 text-green-800 border-green-200'
-    if (review.is_flagged) return 'bg-red-100 text-red-800 border-red-200'
+    if (review.admin_notes) return 'bg-red-100 text-red-800 border-red-200'
     return 'bg-yellow-100 text-yellow-800 border-yellow-200'
   }
 
-  const getStatusText = (review: Review) => {
+  const getStatusText = (review: ReviewWithDetails) => {
+    if (review.show_on_homepage) return 'On Homepage'
     if (review.is_approved) return 'Approved'
-    if (review.is_flagged) return 'Flagged'
+    if (review.admin_notes) return 'Rejected'
     return 'Pending'
   }
 
-  const getStatusIcon = (review: Review) => {
+  const getStatusIcon = (review: ReviewWithDetails) => {
+    if (review.show_on_homepage) return <Globe size={16} />
     if (review.is_approved) return <CheckCircle size={16} />
-    if (review.is_flagged) return <AlertTriangle size={16} />
+    if (review.admin_notes) return <AlertTriangle size={16} />
     return <Clock size={16} />
   }
 
+  // Render stars
   const renderStars = (rating: number) => {
     return (
       <div className="flex items-center gap-1">
@@ -207,18 +249,62 @@ const ReviewManagement: React.FC = () => {
     )
   }
 
+  // Format date
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     })
   }
 
-  if (loading) {
+  // Calculate statistics
+  const calculateStats = () => {
+    if (!reviews.length) return null
+
+    const totalReviews = reviews.length
+    const approvedCount = reviews.filter(r => r.is_approved).length
+    const pendingCount = reviews.filter(r => !r.is_approved && !r.admin_notes).length
+    const flaggedCount = reviews.filter(r => !r.is_approved && !!r.admin_notes).length
+    const homepageCount = reviews.filter(r => r.show_on_homepage).length
+    const averageRating = reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
+
+    return {
+      totalReviews,
+      approvedCount,
+      pendingCount,
+      flaggedCount,
+      homepageCount,
+      averageRating
+    }
+  }
+
+  const stats = calculateStats()
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <RefreshCw className="animate-spin text-blue-600" size={32} />
+        <span className="ml-3 text-gray-600">Loading reviews...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <AlertTriangle className="mx-auto text-red-500 mb-4" size={48} />
+        <h3 className="text-xl font-bold text-gray-900 mb-2">Failed to load reviews</h3>
+        <p className="text-gray-600 mb-4">Please check your connection and try again</p>
+        <button 
+          onClick={() => refetch()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 mx-auto"
+        >
+          <RefreshCw size={20} />
+          Retry
+        </button>
       </div>
     )
   }
@@ -232,14 +318,13 @@ const ReviewManagement: React.FC = () => {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">
               Review Management
             </h1>
-            <p className="text-gray-600 mt-1">Moderate and manage customer reviews</p>
+            <p className="text-gray-600 mt-1">Moderate, approve, and feature reviews on homepage</p>
           </div>
           <div className="flex gap-3">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2">
-              <BarChart3 size={20} />
-              Analytics
-            </button>
-            <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2">
+            <button 
+              onClick={() => refetch()}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+            >
               <RefreshCw size={20} />
               Refresh
             </button>
@@ -248,12 +333,12 @@ const ReviewManagement: React.FC = () => {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-100">Total Reviews</p>
-              <h3 className="text-3xl font-bold mt-1">{reviews.length}</h3>
+              <h3 className="text-3xl font-bold mt-1">{stats?.totalReviews || 0}</h3>
             </div>
             <MessageSquare size={32} className="text-blue-200" />
           </div>
@@ -262,9 +347,7 @@ const ReviewManagement: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-100">Approved</p>
-              <h3 className="text-3xl font-bold mt-1">
-                {reviews.filter(r => r.is_approved).length}
-              </h3>
+              <h3 className="text-3xl font-bold mt-1">{stats?.approvedCount || 0}</h3>
             </div>
             <CheckCircle size={32} className="text-green-200" />
           </div>
@@ -273,9 +356,7 @@ const ReviewManagement: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-orange-100">Pending</p>
-              <h3 className="text-3xl font-bold mt-1">
-                {reviews.filter(r => !r.is_approved && !r.is_flagged).length}
-              </h3>
+              <h3 className="text-3xl font-bold mt-1">{stats?.pendingCount || 0}</h3>
             </div>
             <Clock size={32} className="text-orange-200" />
           </div>
@@ -283,12 +364,21 @@ const ReviewManagement: React.FC = () => {
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100">Average Rating</p>
+              <p className="text-purple-100">On Homepage</p>
+              <h3 className="text-3xl font-bold mt-1">{stats?.homepageCount || 0}</h3>
+            </div>
+            <Home size={32} className="text-purple-200" />
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-pink-500 to-pink-600 rounded-2xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-pink-100">Avg Rating</p>
               <h3 className="text-3xl font-bold mt-1">
-                {(reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)}
+                {stats?.averageRating ? stats.averageRating.toFixed(1) : '0.0'}
               </h3>
             </div>
-            <Star size={32} className="text-purple-200" />
+            <Star size={32} className="text-pink-200" />
           </div>
         </div>
       </div>
@@ -318,7 +408,8 @@ const ReviewManagement: React.FC = () => {
                 <option value="all">All Status</option>
                 <option value="approved">Approved</option>
                 <option value="pending">Pending</option>
-                <option value="flagged">Flagged</option>
+                <option value="flagged">Rejected</option>
+                <option value="on_homepage">On Homepage</option>
               </select>
 
               <select
@@ -338,6 +429,19 @@ const ReviewManagement: React.FC = () => {
 
           {/* Action Buttons */}
           <div className="flex gap-3">
+            {searchTerm || statusFilter !== 'all' || ratingFilter !== 'all' ? (
+              <button
+                onClick={() => {
+                  setSearchTerm('')
+                  setStatusFilter('all')
+                  setRatingFilter('all')
+                }}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-xl font-semibold transition-all flex items-center gap-2"
+              >
+                <FilterX size={20} />
+                Clear Filters
+              </button>
+            ) : null}
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-semibold transition-all flex items-center gap-2">
               <Download size={20} />
               Export
@@ -362,15 +466,17 @@ const ReviewManagement: React.FC = () => {
                           {getStatusIcon(review)}
                           {getStatusText(review)}
                         </span>
+                        {review.show_on_homepage && (
+                          <span className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                            <Home size={12} />
+                            Featured
+                          </span>
+                        )}
                       </h3>
                       <p className="text-gray-600">Booking #{review.booking_id} • {formatDateTime(review.created_at)}</p>
                     </div>
                     <div className="text-right">
                       {renderStars(review.rating)}
-                      <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                        <ThumbsUp size={14} />
-                        {review.helpful_count} found helpful
-                      </div>
                     </div>
                   </div>
 
@@ -378,7 +484,7 @@ const ReviewManagement: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-semibold">
-                        {review.user_name[0]}
+                        {review.user_name?.[0] || 'U'}
                       </div>
                       <div>
                         <div className="font-semibold text-gray-900">{review.user_name}</div>
@@ -410,21 +516,13 @@ const ReviewManagement: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Response Section */}
-                  {review.response ? (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Shield size={16} className="text-blue-600" />
-                        <span className="font-semibold text-blue-800">Admin Response</span>
-                      </div>
-                      <p className="text-blue-700">{review.response}</p>
-                    </div>
-                  ) : (
+                  {/* Response Section - Only show for approved reviews without admin notes */}
+                  {!review.admin_notes && !review.show_on_homepage && (
                     <div className="border border-gray-200 rounded-xl p-4">
                       <textarea
                         value={responseText}
                         onChange={(e) => setResponseText(e.target.value)}
-                        placeholder="Write a response to this review..."
+                        placeholder="Write admin notes or response..."
                         className="w-full h-20 border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
                       <div className="flex justify-end mt-2">
@@ -432,7 +530,7 @@ const ReviewManagement: React.FC = () => {
                           onClick={() => handleAddResponse(review.review_id)}
                           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold transition-all"
                         >
-                          Post Response
+                          Save Notes
                         </button>
                       </div>
                     </div>
@@ -441,7 +539,7 @@ const ReviewManagement: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex flex-col gap-3 min-w-[200px]">
-                  {!review.is_approved && !review.is_flagged && (
+                  {!review.is_approved && !review.admin_notes ? (
                     <>
                       <button 
                         onClick={() => handleApproveReview(review.review_id)}
@@ -451,24 +549,44 @@ const ReviewManagement: React.FC = () => {
                         Approve
                       </button>
                       <button 
-                        onClick={() => handleFlagReview(review.review_id)}
+                        onClick={() => setRejectModalOpen(review.review_id)}
                         className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
                       >
                         <AlertTriangle size={16} />
-                        Flag
+                        Reject
                       </button>
                     </>
-                  )}
-
-                  {review.is_flagged && (
-                    <button 
-                      onClick={() => handleApproveReview(review.review_id)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle size={16} />
-                      Approve Anyway
-                    </button>
-                  )}
+                  ) : review.is_approved ? (
+                    <div className="flex flex-col gap-2">
+                      {!review.show_on_homepage ? (
+                        <button 
+                          onClick={() => handleMarkForHomepage(review.review_id)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <Home size={16} />
+                          Post to Homepage
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleUnmarkFromHomepage(review.review_id)}
+                          className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <Home size={16} />
+                          Remove from Homepage
+                        </button>
+                      )}
+                      
+                      {review.admin_notes && !review.is_approved && (
+                        <button 
+                          onClick={() => handleApproveReview(review.review_id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle size={16} />
+                          Approve Anyway
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
 
                   <div className="relative">
                     <button
@@ -485,12 +603,25 @@ const ReviewManagement: React.FC = () => {
                           <Eye size={16} />
                           View Details
                         </button>
-                        <button className="w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center gap-2 text-gray-700">
-                          <Mail size={16} />
-                          Contact User
-                        </button>
+                        {review.show_on_homepage ? (
+                          <button 
+                            onClick={() => handleUnmarkFromHomepage(review.review_id)}
+                            className="w-full text-left px-4 py-3 hover:bg-purple-50 flex items-center gap-2 text-purple-700"
+                          >
+                            <Home size={16} />
+                            Remove from Homepage
+                          </button>
+                        ) : review.is_approved ? (
+                          <button 
+                            onClick={() => handleMarkForHomepage(review.review_id)}
+                            className="w-full text-left px-4 py-3 hover:bg-purple-50 flex items-center gap-2 text-purple-700"
+                          >
+                            <Home size={16} />
+                            Post to Homepage
+                          </button>
+                        ) : null}
                         <button 
-                          onClick={() => handleRejectReview(review.review_id)}
+                          onClick={() => handleDeleteReview(review.review_id)}
                           className="w-full text-left px-4 py-3 hover:bg-red-50 flex items-center gap-2 text-red-600 rounded-b-xl"
                         >
                           <XCircle size={16} />
@@ -520,7 +651,7 @@ const ReviewManagement: React.FC = () => {
         <div className="space-y-3">
           {[5, 4, 3, 2, 1].map(rating => {
             const count = reviews.filter(r => r.rating === rating).length
-            const percentage = (count / reviews.length) * 100
+            const percentage = reviews.length > 0 ? (count / reviews.length) * 100 : 0
             return (
               <div key={rating} className="flex items-center gap-4">
                 <div className="flex items-center gap-2 w-20">
@@ -541,48 +672,75 @@ const ReviewManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="bg-white rounded-2xl shadow-xl border border-blue-100 p-6">
-        <div className="flex items-center justify-between">
-          <div className="text-gray-600">
-            Showing 1-{filteredReviews.length} of {reviews.length} reviews
-          </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-              Previous
-            </button>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
-              1
-            </button>
-            <button className="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-              2
-            </button>
-            <button className="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-              Next
-            </button>
+      {/* Reject Modal */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRejectModalOpen(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div className="text-center">
+              <AlertTriangle className="mx-auto text-red-500 mb-4" size={48} />
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Reject Review?</h3>
+              <p className="text-gray-600 mb-4">Please provide a reason for rejection:</p>
+              <textarea
+                value={rejectNotes}
+                onChange={(e) => setRejectNotes(e.target.value)}
+                placeholder="Enter rejection reason..."
+                className="w-full h-32 border border-gray-300 rounded-xl p-4 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setRejectModalOpen(null)}
+                  className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleRejectReview(rejectModalOpen)}
+                  className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-all"
+                >
+                  Confirm Reject
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Homepage Modal */}
+      {homepageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setHomepageModalOpen(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div className="text-center">
+              <Home className="mx-auto text-purple-500 mb-4" size={48} />
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Post to Homepage?</h3>
+              <p className="text-gray-600 mb-4">
+                Do you want to feature this review on the homepage? This will make it visible to all visitors.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setHomepageModalOpen(null)}
+                  className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-all"
+                >
+                  Skip for Now
+                </button>
+                <button
+                  onClick={() => handleMarkForHomepage(homepageModalOpen)}
+                  className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all flex items-center gap-2"
+                >
+                  <Home size={16} />
+                  Yes, Post to Homepage
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-4">
+                You can always feature this review later from the actions menu.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
-// Add missing Clock icon import
-const Clock = ({ size, className }: { size: number; className?: string }) => (
-  <svg 
-    width={size} 
-    height={size} 
-    className={className} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
-  </svg>
-)
 
 export default ReviewManagement

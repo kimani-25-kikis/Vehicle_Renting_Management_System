@@ -16,7 +16,7 @@ export interface BookingRequest {
   insurance_type: string
   additional_protection: boolean
   roadside_assistance: boolean
-  booking_status: string
+  booking_status: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled' | 'Rejected'
 }
 
 // Updated BookingResponse with payment_status
@@ -39,7 +39,7 @@ export interface BookingResponse {
     insurance_type: string
     additional_protection: boolean
     roadside_assistance: boolean
-    booking_status: string
+    booking_status: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled' | 'Rejected'
     verified_by_admin: boolean
     verified_at: string | null
     admin_notes: string | null
@@ -190,7 +190,7 @@ export const bookingsApi = createApi({
               data: VerifyLicenseRequest
             }>({
               query: ({ booking_id, data }) => ({
-                url: `/bookings/${booking_id}/verify-license`,
+                url: `/${booking_id}/verify-license`,
                 method: 'PATCH',
                 body: data,
               }),
@@ -247,7 +247,7 @@ export const bookingsApi = createApi({
 
     // GET BOOKING STATISTICS (Admin only)
     getBookingStats: builder.query<{ success: boolean; stats: BookingStats }, void>({
-      query: () => '/stats',
+      query: () => 'stats',
       providesTags: ['BookingStats'],
     }),
 
