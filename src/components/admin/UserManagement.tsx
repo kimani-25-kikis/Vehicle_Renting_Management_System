@@ -497,7 +497,7 @@ const UserManagement: React.FC = () => {
                   className="bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="all" className="bg-gray-800">All Roles</option>
-                  <option value="user" className="bg-gray-800">Users</option>
+                  <option value="customer" className="bg-gray-800">Users</option>
                   <option value="admin" className="bg-gray-800">Admins</option>
                 </select>
               </div>

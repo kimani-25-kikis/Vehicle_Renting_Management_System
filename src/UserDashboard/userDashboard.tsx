@@ -4,6 +4,8 @@ import {
   useGetMyBookingsQuery, 
   useCancelBookingMutation 
 } from '../features/api/bookingsApi'
+
+import { useGetMyReviewsQuery, useSubmitReviewMutation, type Review } from '../features/api/reviewApi'
 import { useGetVehicleByIdQuery } from '../features/api/vehiclesApi'
 import { useUpdateUsersDetailsMutation } from '../features/api/UserApi'
 import { useCreateSupportTicketMutation } from '../features/api/supportApi'
@@ -12,7 +14,7 @@ import {
   XCircle, Loader, ArrowLeft, Eye, Trash2,
   User, Star, Settings, Shield, AlertTriangle,
   CreditCard, Smartphone, Home, BarChart3,
-  MessageSquare, Heart, LogOut, Edit3,
+  MessageSquare, Heart, LogOut, Edit3,RefreshCw,
   Phone, Mail, Map, Save
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,6 +25,7 @@ import { apiDomain } from '../apiDomain/apiDomain'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../store/store'
 import { useEffect } from 'react'
+//import type { Review } from '../features/api/reviewApi'
 
 const stripePromise = loadStripe('pk_test_51SYBIfE5TRP3rh7FeOjNUDed6nQ2v8OAVQEgn1g6YrYxSKIm7gKoiBJlieusfAfSl1DOWPdaWHNHQIkQ6P5B0kT800IDfFLtsu');
 
@@ -65,6 +68,8 @@ const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
   const [updateUser, { isLoading: isUpdating }] = useUpdateUsersDetailsMutation()
   const [activeSection, setActiveSection] = useState<'personal' | 'security'>('personal')
   const [toastId, setToastId] = useState<string | number | null>(null)
+
+  
 
   // Personal Info Form
   const [personalInfo, setPersonalInfo] = useState({
@@ -134,7 +139,7 @@ const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
     setToastId(toastId)
 
     try {
-      await axios.put(`${apiDomain}users/change-password`, {
+      await axios.put(`${apiDomain}/users/change-password`, {
         current_password: securityInfo.current_password,
         new_password: securityInfo.new_password
       }, {
@@ -392,7 +397,11 @@ const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
 
 // Reviews Tab Component
 const ReviewsTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
-  const [reviews, setReviews] = useState<any[]>([])
+  // RTK Query hooks
+  const { data: reviewsData, isLoading, refetch } = useGetMyReviewsQuery()
+  const [submitReview, { isLoading: isSubmitting }] = useSubmitReviewMutation()
+  
+  // Fix: Use useState for currentReview
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [currentReview, setCurrentReview] = useState({ 
     bookingId: 0, 
@@ -401,7 +410,12 @@ const ReviewsTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
     comment: '' 
   })
 
-  const completedBookings = bookings.filter(b => b.booking_status.toLowerCase() === 'completed')
+  // Fix: Remove duplicate declaration - only declare once
+  const reviews: Review[] = reviewsData?.reviews || []
+
+  const completedBookings = bookings.filter(b => 
+    b.booking_status.toLowerCase() === 'completed'
+  )
 
   const handleSubmitReview = async () => {
     if (!currentReview.comment.trim()) {
@@ -410,61 +424,136 @@ const ReviewsTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
     }
 
     try {
-      const token = localStorage.getItem('token')
-      const response = await axios.post(`${apiDomain}reviews`, {
+      await submitReview({
         booking_id: currentReview.bookingId,
         vehicle_id: currentReview.vehicleId,
         rating: currentReview.rating,
         comment: currentReview.comment
-      }, {
-        headers: { Authorization: `${token}` }
-      })
+      }).unwrap()
 
       toast.success('Review submitted successfully! It will appear after admin approval.')
       setShowReviewModal(false)
       setCurrentReview({ bookingId: 0, vehicleId: 0, rating: 5, comment: '' })
-      // Refresh reviews list
-      fetchReviews()
+      
+      // RTK Query will automatically refetch due to invalidatesTags
+      refetch()
     } catch (error: any) {
+      console.error('❌ Review submission error:', error)
+      
       toast.error('Failed to submit review', {
-        description: error?.response?.data?.message || 'Please try again'
+        description: error?.data?.error || error?.data?.message || 'Please try again'
       })
     }
   }
 
-  const fetchReviews = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await axios.get(`${apiDomain}reviews/my-reviews`, {
-        headers: { Authorization: `${token}` }
-      })
-      setReviews(response.data.reviews || [])
-    } catch (error) {
-      console.error('Failed to fetch reviews')
-    }
+  const handleRefreshReviews = () => {
+    refetch()
   }
 
-  useEffect(() => {
-    fetchReviews()
-  }, [])
-
-  return (
-    <div className="space-y-8">
-      <div className="bg-gradient-to-r from-orange-900 to-orange-800 rounded-2xl p-8 text-white">
-        <div className="flex items-center gap-6">
-          <div className="w-24 h-24 bg-gradient-to-br from-white to-orange-200 rounded-2xl flex items-center justify-center">
-            <Star size={40} className="text-orange-600" />
+  // Review Modal Component (included for completeness)
+  const ReviewModal = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowReviewModal(false)} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+        <div className="text-center">
+          <Star className="mx-auto text-orange-500 mb-4" size={48} />
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">Write a Review</h3>
+          <p className="text-gray-600 mb-4 text-sm">
+            Booking #{currentReview.bookingId} • Vehicle #{currentReview.vehicleId}
+          </p>
+          
+          <div className="flex justify-center mb-6">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                onClick={() => setCurrentReview(prev => ({ ...prev, rating: star }))}
+                className="text-3xl mx-1 transition-transform hover:scale-110"
+              >
+                {star <= currentReview.rating ? '⭐' : '☆'}
+              </button>
+            ))}
           </div>
-          <div>
-            <h1 className="text-3xl font-bold">My Reviews</h1>
-            <p className="text-orange-200">Share your experience and help other renters</p>
+          
+          <textarea
+            value={currentReview.comment}
+            onChange={(e) => setCurrentReview(prev => ({ ...prev, comment: e.target.value }))}
+            placeholder="Share your experience with this vehicle... How was the condition? Was it clean? How was the pickup/drop-off process?"
+            className="w-full h-32 border border-gray-300 rounded-xl p-4 mb-6 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+          />
+          
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => setShowReviewModal(false)}
+              className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmitReview}
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-all flex items-center gap-2 disabled:opacity-70"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader size={16} className="animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Star size={16} />
+                  Submit Review
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
+    </div>
+  )
 
-      {/* Pending Reviews */}
+  return (
+    <div className="space-y-8">
+      {/* Header with refresh button */}
+      <div className="bg-gradient-to-r from-orange-900 to-orange-800 rounded-2xl p-8 text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="w-24 h-24 bg-gradient-to-br from-white to-orange-200 rounded-2xl flex items-center justify-center">
+              <Star size={40} className="text-orange-600" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">My Reviews</h1>
+              <p className="text-orange-200">Share your experience and help other renters</p>
+            </div>
+          </div>
+          <button
+            onClick={handleRefreshReviews}
+            disabled={isLoading}
+            className="bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            {isLoading ? (
+              <>
+                <Loader size={20} className="animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw size={20} />
+                Refresh
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Pending Reviews Section */}
       <div className="bg-white rounded-2xl shadow-lg border border-orange-100 p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Pending Reviews</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Pending Reviews</h2>
+          <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-semibold">
+            {completedBookings.length} available
+          </span>
+        </div>
+        
         {completedBookings.length === 0 ? (
           <div className="text-center py-8">
             <Star className="mx-auto text-gray-300 mb-4" size={48} />
@@ -472,44 +561,76 @@ const ReviewsTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
           </div>
         ) : (
           <div className="grid gap-4">
-            {completedBookings.map(booking => (
-              <div key={booking.booking_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
-                <div>
-                  <h3 className="font-semibold text-gray-900">Booking #{booking.booking_id}</h3>
-                  <p className="text-gray-600 text-sm">Completed on {new Date(booking.return_date).toLocaleDateString()}</p>
+            {completedBookings.map(booking => {
+              // Check if user already reviewed this booking
+              const alreadyReviewed = reviews.some((r: Review) => r.booking_id === booking.booking_id)
+              
+              return (
+                <div key={booking.booking_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-orange-50 transition-colors">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Booking #{booking.booking_id}</h3>
+                    <p className="text-gray-600 text-sm">
+                      Completed on {new Date(booking.return_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </p>
+                    {alreadyReviewed && (
+                      <span className="inline-flex items-center gap-1 mt-1 text-green-600 text-sm">
+                        <CheckCircle size={14} />
+                        Already reviewed
+                      </span>
+                    )}
+                  </div>
+                  {!alreadyReviewed && (
+                    <button
+                      onClick={() => {
+                        setCurrentReview({ 
+                          bookingId: booking.booking_id,
+                          vehicleId: booking.vehicle_id,
+                          rating: 5, 
+                          comment: '' 
+                        })
+                        setShowReviewModal(true)
+                      }}
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-xl font-semibold transition-all flex items-center gap-2"
+                    >
+                      <Star size={16} />
+                      Write Review
+                    </button>
+                  )}
                 </div>
-                <button
-                  onClick={() => {
-                    setCurrentReview(prev => ({ 
-                      ...prev, 
-                      bookingId: booking.booking_id,
-                      vehicleId: booking.vehicle_id 
-                    }))
-                    setShowReviewModal(true)
-                  }}
-                  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-xl font-semibold transition-all flex items-center gap-2"
-                >
-                  <Star size={16} />
-                  Write Review
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* My Reviews */}
+      {/* My Reviews Section */}
       <div className="bg-white rounded-2xl shadow-lg border border-orange-100 p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">My Reviews</h2>
-        {reviews.length === 0 ? (
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">My Reviews</h2>
+          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
+            {reviews.length} total
+          </span>
+        </div>
+        
+        {isLoading ? (
+          <div className="text-center py-8">
+            <Loader className="mx-auto text-orange-500 animate-spin mb-4" size={32} />
+            <p className="text-gray-600">Loading your reviews...</p>
+          </div>
+        ) : reviews.length === 0 ? (
           <div className="text-center py-8">
             <MessageSquare className="mx-auto text-gray-300 mb-4" size={48} />
             <p className="text-gray-600">You haven't written any reviews yet</p>
+            <p className="text-gray-500 text-sm mt-2">Complete a booking to write your first review!</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {reviews.map((review) => (
-              <div key={review.review_id} className="border border-gray-200 rounded-xl p-6">
+            {reviews.map((review: Review) => (
+              <div key={review.review_id} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     {[...Array(5)].map((_, i) => (
@@ -524,21 +645,39 @@ const ReviewsTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                       review.is_approved 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
+                        ? 'bg-green-100 text-green-800 border border-green-200' 
+                        : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
                     }`}>
-                      {review.is_approved ? 'Approved' : 'Pending Approval'}
+                      {review.is_approved ? (
+                        <>
+                          <CheckCircle size={12} className="inline mr-1" />
+                          Approved
+                        </>
+                      ) : (
+                        <>
+                          <Clock size={12} className="inline mr-1" />
+                          Pending
+                        </>
+                      )}
                     </span>
                     <span className="text-sm text-gray-500">
-                      {new Date(review.created_at).toLocaleDateString()}
+                      {review.created_at ? new Date(review.created_at).toLocaleDateString() : 'No date'}
                     </span>
                   </div>
                 </div>
                 <p className="text-gray-700 mb-3">{review.comment}</p>
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <span className="text-sm text-gray-500">
-                    Vehicle: {review.manufacturer} {review.model} • Booking #{review.booking_id}
+                    Vehicle: {review.vehicle_name || 
+                              `${review.manufacturer || ''} ${review.model || ''}`.trim() || 
+                              `Vehicle #${review.vehicle_id}`} • 
+                    Booking #{review.booking_id}
                   </span>
+                  {review.admin_notes && !review.is_approved && (
+                    <div className="mt-2 p-2 bg-gray-50 rounded text-sm text-gray-600">
+                      <strong>Admin Note:</strong> {review.admin_notes}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -547,49 +686,7 @@ const ReviewsTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
       </div>
 
       {/* Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowReviewModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-            <div className="text-center">
-              <Star className="mx-auto text-orange-500 mb-4" size={48} />
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">Write a Review</h3>
-              <div className="flex justify-center mb-6">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setCurrentReview(prev => ({ ...prev, rating: star }))}
-                    className="text-3xl mx-1 transition-transform hover:scale-110"
-                  >
-                    {star <= currentReview.rating ? '⭐' : '☆'}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={currentReview.comment}
-                onChange={(e) => setCurrentReview(prev => ({ ...prev, comment: e.target.value }))}
-                placeholder="Share your experience with this vehicle... How was the condition? Was it clean? How was the pickup/drop-off process?"
-                className="w-full h-32 border border-gray-300 rounded-xl p-4 mb-6 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-              />
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => setShowReviewModal(false)}
-                  className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmitReview}
-                  className="px-6 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-all flex items-center gap-2"
-                >
-                  <Star size={16} />
-                  Submit Review
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {showReviewModal && <ReviewModal />}
     </div>
   )
 }
@@ -912,7 +1009,7 @@ const UserDashboard: React.FC = () => {
       const header = { 'Content-Type': 'application/json' };
       
       if (method === 'card') {
-        const checkoutResponse = await axios.post(`${apiDomain}payments/create-intent`, JSON.stringify(booking), {
+        const checkoutResponse = await axios.post(`${apiDomain}/payments/create-intent`, JSON.stringify(booking), {
           headers: { ...header, Authorization: `${token}` },
         });
 
@@ -925,7 +1022,7 @@ const UserDashboard: React.FC = () => {
         }
       } else {
         // M-Pesa payment logic
-        const mpesaResponse = await axios.post(`${apiDomain}payments/mpesa-payment`, {
+        const mpesaResponse = await axios.post(`${apiDomain}/payments/mpesa-payment`, {
           booking_id: booking.booking_id,
           amount: booking.total_amount,
         }, {
@@ -986,7 +1083,7 @@ const UserDashboard: React.FC = () => {
         return;
       }
 
-      await axios.post(`${apiDomain}reviews`, {
+      await axios.post(`${apiDomain}/reviews`, {
         booking_id: review.bookingId,
         vehicle_id: booking.vehicle_id,
         rating: review.rating,

@@ -1,15 +1,28 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router'
-import { Car, Zap, Fuel, Settings, Star, Shield, Clock, Users, MapPin, Calendar, Heart, Search } from 'lucide-react'
+import { Car, Zap,MessageSquare, Fuel, Settings, Star, Shield, Clock, Users, MapPin, Calendar, Heart, Search,Quote, Sparkles, ThumbsUp, User } from 'lucide-react'
 import { useGetVehiclesQuery } from '../features/api/vehiclesApi'
 import type { Vehicle } from '../types/Types'
 import Navbar from './Navbar'
 import Footer from './Footer'
 
-
+import { useGetHomepageReviewsQuery, } from '../features/api/reviewApi'
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 
+
+interface HomepageReview {
+  review_id: number
+  user_id: number
+  first_name: string
+  last_name: string
+  rating: number
+  comment: string
+  manufacturer?: string
+  model?: string
+  vehicle_name?: string
+  created_at: string
+}
 
 const FEATURED_VEHICLES_BG = 'https://m.media-amazon.com/images/I/81uVQ3ZZwqL._AC_UF350,350_QL80_.jpg'
 
@@ -19,6 +32,10 @@ const HomePage: React.FC = () => {
         pickupDate: '',
         returnDate: ''
     })
+
+    // const [reviews, setReviews] = useState<HomepageReview[]>([])
+    // const [reviewsLoading, setReviewsLoading] = useState(true)
+
     const { data: vehiclesData, isLoading, error } = useGetVehiclesQuery({
         limit: 6,
         availability: true
@@ -65,6 +82,28 @@ const HomePage: React.FC = () => {
         .map(v => v.current_location)
         .filter(Boolean)
     )]
+
+    const { 
+  data: reviewsResponse, 
+  isLoading: reviewsLoading, 
+  error: reviewsError 
+} = useGetHomepageReviewsQuery()
+
+
+
+// Then transform the data when needed:
+const reviews: HomepageReview[] = React.useMemo(() => {
+  if (!reviewsResponse?.reviews) return []
+  
+  return reviewsResponse.reviews.map((review: any) => ({
+    ...review,
+    vehicle_name: review.vehicle_name || `${review.manufacturer || ''} ${review.model || ''}`.trim(),
+    comment: review.comment.length > 120 
+      ? review.comment.substring(0, 120) + '...' 
+      : review.comment
+  }))
+}, [reviewsResponse])
+
 
     if (error) {
         return (
@@ -409,6 +448,166 @@ const HomePage: React.FC = () => {
                     </div>
                 </div>
             </section>
+
+            <section className="py-16 bg-gradient-to-b from-blue-50 via-white to-blue-50">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="text-center mb-12">
+      <div className="inline-flex items-center gap-3 mb-4">
+        <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center">
+          <Star className="text-white" size={24} />
+        </div>
+        <h2 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-900 via-orange-600 to-blue-900 bg-clip-text text-transparent">
+          What Our Customers Say
+        </h2>
+      </div>
+      <p className="text-lg text-blue-900 max-w-2xl mx-auto">
+        Don't just take our word for it. Hear from our satisfied customers
+      </p>
+    </div>
+
+    {reviewsLoading ? (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      </div>
+    ) : reviews.length > 0 ? (
+      <>
+        {/* Main Review Cards - 2 large ones on desktop */}
+        <div className="hidden lg:grid lg:grid-cols-2 gap-8 mb-8">
+          {reviews.slice(0, 2).map((review, index) => (
+            <div 
+              key={review.review_id} 
+              className="bg-white rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 transform hover:-translate-y-2 border border-blue-100 overflow-hidden"
+            >
+              <div className="p-8">
+                {/* Quote icon and decorative elements */}
+                <div className="flex items-start justify-between mb-6">
+                  <Quote className="text-orange-500/20 rotate-180" size={48} />
+                  <div className="flex gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        size={20}
+                        className={i < review.rating ? "text-orange-500 fill-orange-500" : "text-gray-300"}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Review comment */}
+                <p className="text-gray-700 text-lg italic mb-8 leading-relaxed">
+                  "{review.comment}"
+                </p>
+
+                {/* Customer info and vehicle */}
+                <div className="flex items-center justify-between pt-6 border-t border-blue-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                      {review.first_name?.[0] || 'C'}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">
+                        {review.first_name} {review.last_name}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        Satisfied Customer
+                      </p>
+                    </div>
+                  </div>
+                  {review.vehicle_name && (
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500">Rented</div>
+                      <div className="font-semibold text-blue-900">{review.vehicle_name}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Smaller review cards - grid of 4 on desktop, 2 on mobile */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {reviews.slice(0, 4).map((review, index) => (
+            <div 
+              key={review.review_id} 
+              className={`bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 ${
+                index < 2 ? 'lg:hidden' : ''
+              }`}
+            >
+              <div className="p-6">
+                {/* Rating stars */}
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="flex gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        size={16}
+                        className={i < review.rating ? "text-orange-500 fill-orange-500" : "text-gray-300"}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-bold text-orange-600">{review.rating}.0</span>
+                </div>
+
+                {/* Review excerpt */}
+                <p className="text-gray-700 mb-6 line-clamp-3 text-sm">
+                  "{review.comment}"
+                </p>
+
+                {/* Customer info */}
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+                    {review.first_name?.[0] || 'C'}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">
+                      {review.first_name} {review.last_name?.charAt(0)}.
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {review.vehicle_name || 'Happy Customer'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Stats row */}
+        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="text-center p-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl">
+            <div className="text-3xl font-bold text-blue-900 mb-2">{reviews.length}+</div>
+            <div className="text-sm text-blue-700 font-semibold">Happy Customers</div>
+          </div>
+          <div className="text-center p-6 bg-gradient-to-r from-orange-50 to-orange-100 rounded-2xl">
+            <div className="text-3xl font-bold text-orange-900 mb-2">
+              {(reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length).toFixed(1) || '5.0'}
+            </div>
+            <div className="text-sm text-orange-700 font-semibold">Avg Rating</div>
+          </div>
+          <div className="text-center p-6 bg-gradient-to-r from-green-50 to-green-100 rounded-2xl">
+            <div className="text-3xl font-bold text-green-900 mb-2">100%</div>
+            <div className="text-sm text-green-700 font-semibold">Approval Rate</div>
+          </div>
+          <div className="text-center p-6 bg-gradient-to-r from-purple-50 to-purple-100 rounded-2xl">
+            <div className="text-3xl font-bold text-purple-900 mb-2">24/7</div>
+            <div className="text-sm text-purple-700 font-semibold">Support</div>
+          </div>
+        </div>
+      </>
+    ) : (
+      <div className="text-center py-12">
+        <div className="w-24 h-24 bg-gradient-to-r from-blue-200 to-blue-300 rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <MessageSquare className="text-blue-500" size={40} />
+        </div>
+        <h3 className="text-2xl font-bold text-blue-900 mb-3">No Reviews Yet</h3>
+        <p className="text-blue-700 max-w-md mx-auto">
+          Be the first to share your experience! Book a vehicle and leave a review.
+        </p>
+      </div>
+    )}
+  </div>
+</section>
 
             {/* CTA Section */}
             <section className="py-20 bg-gradient-to-r from-blue-900 to-blue-700 text-white">

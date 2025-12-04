@@ -28,6 +28,7 @@ interface ReviewWithDetails extends Review {
   is_flagged: boolean
   helpful_count: number
   show_on_homepage?: boolean
+  created_at: string 
 }
 
 const ReviewManagement: React.FC = () => {
@@ -61,35 +62,36 @@ const ReviewManagement: React.FC = () => {
   const [selectedForHomepage, setSelectedForHomepage] = useState<number[]>([])
 
   // Transform API data to match component interface
-  const reviews: ReviewWithDetails[] = React.useMemo(() => {
-    if (!reviewsResponse?.reviews) return []
+  // In ReviewManagement.tsx - Update the transform function
+const reviews: ReviewWithDetails[] = React.useMemo(() => {
+  if (!reviewsResponse?.reviews) return []
+  
+  return reviewsResponse.reviews.map(review => {
+    const vehicleName = `${review.manufacturer || 'Unknown'} ${review.model || ''} ${review.year ? `(${review.year})` : ''}`.trim()
+    const userName = `${review.first_name || ''} ${review.last_name || ''}`.trim() || 'Anonymous'
+    const userEmail = review.email || ''
+    const showOnHomepage = (review as any).show_on_homepage || false
     
-    return reviewsResponse.reviews.map(review => {
-      const vehicleName = `${review.manufacturer || 'Unknown'} ${review.model || ''}`.trim()
-      const userName = `${review.first_name || ''} ${review.last_name || ''}`.trim() || 'Anonymous'
-      const userEmail = review.email || ''
-      const showOnHomepage = (review as any).show_on_homepage || false
-      
-      return {
-        ...review,
-        review_id: review.review_id,
-        booking_id: review.booking_id,
-        user_id: review.user_id,
-        user_name: userName,
-        user_email: userEmail,
-        vehicle_id: review.vehicle_id,
-        vehicle_name: vehicleName,
-        rating: review.rating,
-        comment: review.comment,
-        is_approved: review.is_approved,
-        is_flagged: !review.is_approved && !!review.admin_notes,
-        show_on_homepage: showOnHomepage,
-        created_at: review.created_at,
-        admin_notes: review.admin_notes,
-        helpful_count: 0,
-      }
-    })
-  }, [reviewsResponse])
+    return {
+      ...review,
+      review_id: review.review_id,
+      booking_id: review.booking_id,
+      user_id: review.user_id,
+      user_name: userName,
+      user_email: userEmail,
+      vehicle_id: review.vehicle_id,
+      vehicle_name: vehicleName,
+      rating: review.rating,
+      comment: review.comment,
+      is_approved: review.is_approved,
+      is_flagged: !review.is_approved && !!review.admin_notes,
+      show_on_homepage: showOnHomepage,
+      created_at: review.created_at,
+      admin_notes: review.admin_notes,
+      helpful_count: 0,
+    }
+  })
+}, [reviewsResponse])
 
   // Filter reviews
   const filteredReviews = reviews.filter(review => {

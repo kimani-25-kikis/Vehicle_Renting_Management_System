@@ -107,13 +107,25 @@ const Navbar: React.FC = () => {
                                             {user?.email}
                                         </li>
                                         <li>
-                                            <Link
+                                            {
+                                                user?.user_type === "admin" ? (
+                                                    <Link
+                                                to="/admin"
+                                                className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-800 hover:bg-blue-50 rounded-md transition-colors font-semibold"
+                                            >
+                                                <Users size={16} className="text-blue-900" />
+                                                <span>Dashboard</span>
+                                            </Link>
+                                                ): user?.user_type === "customer" ? (
+                                                 <Link
                                                 to="/dashboard"
                                                 className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-800 hover:bg-blue-50 rounded-md transition-colors font-semibold"
                                             >
                                                 <Users size={16} className="text-blue-900" />
                                                 <span>Dashboard</span>
                                             </Link>
+                                                ): null
+                                            }
                                         </li>
                                         <li>
                                             <button
