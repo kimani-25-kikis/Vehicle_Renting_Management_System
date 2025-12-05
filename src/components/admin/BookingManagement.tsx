@@ -31,6 +31,8 @@ import type { BookingResponse } from '../../features/api/bookingsApi'
 
 type Booking = BookingResponse['booking']
 
+
+
 // Animated components
 const FloatingCard = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => (
   <motion.div
@@ -67,6 +69,7 @@ const GlowingButton = ({ children, onClick, variant = 'primary', className = '',
 )
 
 // FIXED: Download driver license function
+// FIXED: Download driver license function
 const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
   try {
     // Get token from localStorage
@@ -87,7 +90,7 @@ const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
     // Clean token
     const actualToken = tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '');
 
-    // FIXED: Use correct endpoint URL (without duplicate /bookings/)
+    // FIXED: Correct endpoint URL
     const response = await fetch(
       `http://localhost:3000/api/bookings/${bookingId}/license/${side}`,
       {
@@ -110,11 +113,9 @@ const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
     const contentType = response.headers.get('content-type');
     
     if (contentType?.includes('application/json')) {
-      // Handle JSON response with download URL
       const data = await response.json();
       
       if (data.success && data.url) {
-        // Create a temporary link to trigger download
         const link = document.createElement('a');
         link.href = data.url;
         link.download = `driver-license-${side}-${bookingId}.jpg`;
@@ -129,7 +130,6 @@ const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
         return false;
       }
     } else {
-      // Handle direct file download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -224,6 +224,35 @@ const BookingDetailsModal: React.FC<{
       default: return 'bg-gradient-to-r from-gray-500 to-gray-600'
     }
   }
+  // Add this useEffect at the top of your BookingManagement component
+// useEffect(() => {
+//   console.log('🔐 AUTH DEBUG INFO:')
+  
+//   // Check localStorage
+//   const persistAuth = localStorage.getItem('persist:auth')
+//   console.log('persist:auth exists:', !!persistAuth)
+  
+//   if (persistAuth) {
+//     try {
+//       const authState = JSON.parse(persistAuth)
+//       console.log('Auth state keys:', Object.keys(authState))
+//       console.log('Token:', authState.token)
+      
+//       // Check token format
+//       if (authState.token) {
+//         console.log('Token length:', authState.token.length)
+//         console.log('Token starts with "Bearer "?:', authState.token.includes('Bearer'))
+//         console.log('Token has quotes?:', authState.token.includes('"'))
+//       }
+//     } catch (e) {
+//       console.error('Error parsing persist:auth:', e)
+//     }
+//   }
+  
+//   // Also check if there's a plain token
+//   const plainToken = localStorage.getItem('token')
+//   console.log('Plain token in localStorage:', plainToken)
+// }, [])
 
   if (!isOpen) return null
 
@@ -654,46 +683,116 @@ const BookingManagement: React.FC = () => {
     }
   }
 
-  const handleCancelBooking = async (bookingId: number) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return
+ const handleExportBookings = async () => {
+  try {
+    // Build query parameters
+    const params = new URLSearchParams();
     
-    try {
-      await cancelBooking(bookingId).unwrap()
-      toast.success(`Booking #${bookingId} cancelled successfully`)
-      setActionMenu(null)
-      refetch()
-    } catch (error: any) {
-      console.error('Cancel booking error:', error)
-      toast.error(error?.data?.error || error?.data?.message || 'Failed to cancel booking')
-      setActionMenu(null)
-    }
-  }
+    // Add format parameter
+    params.append('format', 'csv');
+    
+    // Add any filters that are set
+    if (filters.status) params.append('status', filters.status);
+    if (filters.payment_status) params.append('payment_status', filters.payment_status);
+    if (filters.date_from) params.append('date_from', filters.date_from);
+    if (filters.date_to) params.append('date_to', filters.date_to);
+    if (filters.search) params.append('search', filters.search);
 
-  const handleExportBookings = async () => {
-    try {
-      const exportFilters = {
-        ...filters,
-        format: 'csv' as const
+    // Get token from localStorage
+    const persistAuth = localStorage.getItem('persist:auth');
+    if (!persistAuth) {
+      toast.error('Authentication required');
+      return;
+    }
+
+    const authState = JSON.parse(persistAuth);
+    const tokenWithBearer = authState.token;
+    
+    if (!tokenWithBearer) {
+      toast.error('No authentication token found');
+      return;
+    }
+
+    // Clean token
+    const actualToken = tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '');
+    
+    // DEBUG: Log the URL
+    const url = `http://localhost:3000/api/bookings/export?${params.toString()}`;
+    console.log('🔍 Export URL:', url);
+    console.log('🔍 Export params:', Object.fromEntries(params.entries()));
+
+    // Make the request
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${actualToken}`,
+      },
+    });
+
+    console.log('🔍 Export response status:', response.status);
+    console.log('🔍 Export response headers:', Object.fromEntries(response.headers.entries()));
+
+    // Check if response is JSON (error) or file (success)
+    const contentType = response.headers.get('content-type');
+    
+    if (!response.ok) {
+      // Try to parse error as JSON
+      let errorMessage = 'Export failed';
+      try {
+        if (contentType?.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || `Export failed with status: ${response.status}`;
+        } else {
+          const errorText = await response.text();
+          errorMessage = errorText || `Export failed with status: ${response.status}`;
+        }
+      } catch {
+        errorMessage = `Export failed with status: ${response.status}`;
       }
       
-      const blob = await exportBookings(exportFilters).unwrap()
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `bookings-export-${new Date().toISOString().split('T')[0]}.csv`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      
-      toast.success('Bookings exported successfully')
-    } catch (error: any) {
-      console.error('Export error:', error)
-      toast.error('Failed to export bookings')
+      throw new Error(errorMessage);
     }
+
+    // If response is JSON but status is OK, it might be an error in JSON format
+    if (contentType?.includes('application/json')) {
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+    }
+
+    // Get the blob for download
+    const blob = await response.blob();
+    
+    // Get filename from headers or create default
+    let filename = `bookings-export-${new Date().toISOString().split('T')[0]}.csv`;
+    const contentDisposition = response.headers.get('content-disposition');
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) {
+        filename = match[1];
+      }
+    }
+
+    // Create download link
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Cleanup
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(link);
+
+    toast.success('Bookings exported successfully!');
+
+  } catch (error: any) {
+    console.error('❌ Export error:', error);
+    toast.error(`Failed to export bookings: ${error.message || 'Unknown error'}`);
   }
+};
 
   const handleApplyFilters = useCallback(() => {
     const newFilters: BookingFilters = {}
@@ -1278,7 +1377,7 @@ const BookingManagement: React.FC = () => {
                         )}
                         {(booking.booking_status === 'Pending' || booking.booking_status === 'Confirmed') && (
                           <GlowingButton
-                            onClick={() => handleCancelBooking(booking.booking_id)}
+                            onClick={() => cancelBooking(booking.booking_id)}
                             variant="danger"
                             className="py-2 text-sm"
                             disabled={isCancelling}

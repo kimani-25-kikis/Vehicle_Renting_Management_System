@@ -962,7 +962,7 @@ const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
 
 const UserDashboard: React.FC = () => {
   const [createSupportTicket] = useCreateSupportTicketMutation()
-  const { data: bookings, isLoading, error } = useGetMyBookingsQuery()
+  const { data: bookings, isLoading, } = useGetMyBookingsQuery()
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
   const [activeTab, setActiveTab] = useState<'bookings' | 'profile' | 'reviews' | 'support'>('bookings')
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled'>('all')
@@ -1117,11 +1117,11 @@ const UserDashboard: React.FC = () => {
     }
   }
 
-  useEffect(() => {
-    console.log("🔍 UserDashboard - Bookings data:", bookings)
-    console.log("🔍 UserDashboard - Token:", token)
-    console.log("🔍 UserDashboard - Error:", error)
-  }, [bookings, token, error])
+  // useEffect(() => {
+  //   console.log("🔍 UserDashboard - Bookings data:", bookings)
+  //   console.log("🔍 UserDashboard - Token:", token)
+  //   console.log("🔍 UserDashboard - Error:", error)
+  // }, [bookings, token, error])
 
   const bookingData: BookingData[] = Array.isArray(bookings?.booking)
     ? bookings.booking
@@ -1135,32 +1135,6 @@ const UserDashboard: React.FC = () => {
 
   const completedBookings = bookingData.filter(b => b.booking_status.toLowerCase() === 'completed');
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Navbar />
-        <div className="text-center">
-          <Loader className="mx-auto text-blue-600 animate-spin" size={48} />
-          <p className="mt-4 text-gray-600 text-lg">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Navbar />
-        <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-md">
-          <XCircle className="mx-auto text-red-500 mb-4" size={64} />
-          <h2 className="text-2xl font-bold mb-4">Error Loading Dashboard</h2>
-          <button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl">
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -1288,7 +1262,28 @@ const UserDashboard: React.FC = () => {
                           Browse Vehicles
                         </Link>
                       </div>
-                    ) : (
+                    ) :
+                    isLoading ?(
+                      <>
+                      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">                          
+                          <div className="text-center">
+                            <Loader className="mx-auto text-blue-600 animate-spin" size={48} />
+                            <p className="mt-4 text-gray-600 text-lg">Loading your dashboard...</p>
+                          </div>
+                        </div>
+                      </>
+                    ) : bookingData.length === 0 ?(
+                      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        
+                      <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-md">
+                        <XCircle className="mx-auto text-red-500 mb-4" size={64} />
+                        <h2 className="text-2xl font-bold mb-4">No Bookings found</h2>
+                        <button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl">
+                          Try Again
+                        </button>
+                      </div>
+                    </div>
+                    ): (
                       filteredBookings.map(booking => (
                         <div key={booking.booking_id} className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden hover:shadow-2xl transition-all duration-300">
                           <div className="p-8">

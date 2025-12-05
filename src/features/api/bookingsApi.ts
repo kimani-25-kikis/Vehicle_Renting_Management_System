@@ -19,7 +19,6 @@ export interface BookingRequest {
   booking_status: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled' | 'Rejected'
 }
 
-// Updated BookingResponse with payment_status
 export interface BookingResponse {
   success: boolean
   booking: {
@@ -46,21 +45,24 @@ export interface BookingResponse {
     created_at: string
     updated_at: string
     
-    // User and vehicle details
     user_name?: string
     user_email?: string
     vehicle_manufacturer?: string
     vehicle_model?: string
     rental_rate?: number
     
-    // Payment info
     payment_status?: 'Pending' | 'Completed' | 'Failed' | 'Refunded'
     payment_method?: string
     transaction_id?: string
   }
 }
 
-// Booking statistics interface
+// For user bookings (returns array)
+export interface UserBookingsResponse {
+  success: boolean
+  booking: BookingResponse['booking'] | BookingResponse['booking'][]
+}
+
 export interface BookingStats {
   total_bookings: number
   active_rentals: number
@@ -71,7 +73,6 @@ export interface BookingStats {
   cancelled_bookings: number
 }
 
-// Booking filters interface
 export interface BookingFilters {
   status?: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled' | 'Rejected'
   payment_status?: 'Pending' | 'Completed' | 'Failed' | 'Refunded'
@@ -82,18 +83,17 @@ export interface BookingFilters {
   vehicle_id?: number
 }
 
-// Booking status update interface
 export interface UpdateBookingStatusRequest {
   booking_status: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled' |'Rejected'
   admin_notes?: string
 }
 
-// License verification interface
 export interface VerifyLicenseRequest {
   verified: boolean
   admin_notes?: string
   download_license?: boolean 
 }
+
 export interface LicenseDownloadResponse {
   success: boolean
   front_url?: string
@@ -111,9 +111,11 @@ const getAuthToken = (): string | null => {
 
     const authState = JSON.parse(persistAuth)
     const tokenWithBearer = authState.token
+    
     if (!tokenWithBearer) return null
 
-    return tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '')
+    return tokenWithBearer.replace(/^"|"$/g, '')
+    
   } catch (error) {
     console.error('Error getting auth token:', error)
     return null
@@ -123,28 +125,80 @@ const getAuthToken = (): string | null => {
 export const bookingsApi = createApi({
   reducerPath: 'bookingsApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://localhost:3000/api/bookings',
-    prepareHeaders: (headers) => {
+    baseUrl: 'http://localhost:3000/api',
+    prepareHeaders: (headers, { endpoint }) => {
       const token = getAuthToken()
       if (token) {
-        headers.set('authorization', `Bearer ${token}`)
+        headers.set('authorization', token)
       }
+      headers.set('Content-Type', 'application/json')
       return headers
     },
   }),
   tagTypes: ['Bookings', 'BookingStats'],
   endpoints: (builder) => ({
 
+    // ========== USER ENDPOINTS ==========
+    
     // CREATE BOOKING
     createBooking: builder.mutation<BookingResponse, BookingRequest>({
       query: (bookingData) => ({
-        url: '',
+        url: '/bookings',
         method: 'POST',
         body: bookingData,
       }),
       invalidatesTags: ['Bookings', 'BookingStats'],
     }),
 
+    // GET LOGGED-IN USER BOOKINGS
+    getMyBookings: builder.query<UserBookingsResponse, void>({
+      query: () => '/bookings/my-bookings',
+      providesTags: ['Bookings'],
+    }),
+
+    // GET BOOKING BY ID (User or Admin)
+    getBookingById: builder.query<BookingResponse, number>({
+      query: (id) => `/bookings/${id}`,
+      providesTags: ['Bookings'],
+    }),
+
+    // CANCEL BOOKING (User)
+    cancelBooking: builder.mutation<{ message: string }, number>({
+      query: (bookingId) => ({
+        url: `/bookings/${bookingId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Bookings', 'BookingStats'],
+    }),
+
+    // EXTEND BOOKING (User)
+    extendBooking: builder.mutation<
+      BookingResponse,
+      { bookingId: number; newReturnDate: string; additionalAmount?: number }
+    >({
+      query: ({ bookingId, newReturnDate, additionalAmount }) => ({
+        url: `/bookings/${bookingId}/extend`,
+        method: 'PUT',
+        body: { new_return_date: newReturnDate, additional_amount: additionalAmount || 0 },
+      }),
+      invalidatesTags: ['Bookings'],
+    }),
+
+    // CONFIRM BOOKING PAYMENT (User)
+    confirmBookingPayment: builder.mutation<BookingResponse, {
+      booking_id: number
+      payment_intent_id: string
+    }>({
+      query: ({ booking_id, payment_intent_id }) => ({
+        url: `/bookings/${booking_id}/confirm-payment`,
+        method: 'POST',
+        body: { payment_intent_id },
+      }),
+      invalidatesTags: ['Bookings', 'BookingStats'],
+    }),
+
+    // ========== ADMIN ENDPOINTS ==========
+    
     // GET ALL BOOKINGS (Admin only - with optional filters)
     getAllBookings: builder.query<{ success: boolean; data: BookingResponse['booking'][] }, BookingFilters>({
       query: (filters) => {
@@ -154,20 +208,9 @@ export const bookingsApi = createApi({
             params.append(key, value.toString())
           }
         })
-        return `?${params.toString()}`
+        const queryString = params.toString()
+        return queryString ? `/bookings?${queryString}` : '/bookings'
       },
-      providesTags: ['Bookings'],
-    }),
-
-    // GET LOGGED-IN USER BOOKINGS
-    getMyBookings: builder.query<BookingResponse, void>({
-      query: () => '/my-bookings',
-      providesTags: ['Bookings'],
-    }),
-
-    // GET BOOKING BY ID
-    getBookingById: builder.query<BookingResponse, number>({
-      query: (id) => `/${id}`,
       providesTags: ['Bookings'],
     }),
 
@@ -177,7 +220,7 @@ export const bookingsApi = createApi({
       data: UpdateBookingStatusRequest
     }>({
       query: ({ booking_id, data }) => ({
-        url: `/${booking_id}/status`,
+        url: `/bookings/${booking_id}/status`,
         method: 'PUT',
         body: data,
       }),
@@ -185,51 +228,16 @@ export const bookingsApi = createApi({
     }),
 
     // VERIFY DRIVER LICENSE (Admin only)
-                verifyDriverLicense: builder.mutation<BookingResponse & { license_download_info?: LicenseDownloadResponse }, {
-              booking_id: number
-              data: VerifyLicenseRequest
-            }>({
-              query: ({ booking_id, data }) => ({
-                url: `/${booking_id}/verify-license`,
-                method: 'PATCH',
-                body: data,
-              }),
-              invalidatesTags: ['Bookings'],
-            }),
-
-    // CANCEL BOOKING
-    cancelBooking: builder.mutation<{ message: string }, number>({
-      query: (bookingId) => ({
-        url: `/${bookingId}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: ['Bookings', 'BookingStats'],
-    }),
-
-    // EXTEND BOOKING
-    extendBooking: builder.mutation<
-      BookingResponse,
-      { bookingId: number; newReturnDate: string; additionalAmount?: number }
-    >({
-      query: ({ bookingId, newReturnDate, additionalAmount }) => ({
-        url: `/${bookingId}/extend`,
-        method: 'PUT',
-        body: { new_return_date: newReturnDate, additional_amount: additionalAmount || 0 },
+    verifyDriverLicense: builder.mutation<BookingResponse & { license_download_info?: LicenseDownloadResponse }, {
+      booking_id: number
+      data: VerifyLicenseRequest
+    }>({
+      query: ({ booking_id, data }) => ({
+        url: `/bookings/${booking_id}/verify-license`,
+        method: 'PATCH',
+        body: data,
       }),
       invalidatesTags: ['Bookings'],
-    }),
-
-    // CONFIRM BOOKING PAYMENT
-    confirmBookingPayment: builder.mutation<BookingResponse, {
-      booking_id: number
-      payment_intent_id: string
-    }>({
-      query: ({ booking_id, payment_intent_id }) => ({
-        url: `/${booking_id}/confirm-payment`,
-        method: 'POST',
-        body: { payment_intent_id },
-      }),
-      invalidatesTags: ['Bookings', 'BookingStats'],
     }),
 
     // REFUND BOOKING PAYMENT (Admin only)
@@ -238,7 +246,7 @@ export const bookingsApi = createApi({
       refund_reason: string
     }>({
       query: ({ booking_id, refund_reason }) => ({
-        url: `/${booking_id}/refund`,
+        url: `/bookings/${booking_id}/refund`,
         method: 'POST',
         body: { refund_reason },
       }),
@@ -247,19 +255,45 @@ export const bookingsApi = createApi({
 
     // GET BOOKING STATISTICS (Admin only)
     getBookingStats: builder.query<{ success: boolean; stats: BookingStats }, void>({
-      query: () => 'stats',
+      query: () => '/bookings/admin-stats',
       providesTags: ['BookingStats'],
     }),
 
     // EXPORT BOOKINGS (Admin only)
-    exportBookings: builder.mutation<Blob, BookingFilters & { format: 'csv' | 'excel' }>({
-      query: (params) => ({
-        url: '/export',
-        method: 'GET',
-        params,
-        responseHandler: (response) => response.blob(),
-      }),
+    // EXPORT BOOKINGS (Admin only) - FIXED
+exportBookings: builder.mutation<Blob, BookingFilters & { format: 'csv' | 'excel' }>({
+  query: (params) => ({
+    url: '/bookings/export',
+    method: 'GET',
+    params,
+    responseHandler: async (response) => {
+      if (!response.ok) {
+        // Handle error response as JSON instead of blob
+        const errorText = await response.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || errorJson.message || 'Export failed');
+        } catch {
+          throw new Error(errorText || 'Export failed');
+        }
+      }
+      return response.blob();
+    },
+    // Add this to prevent blob from being stored in Redux
+    transformResponse: (response: Blob) => response,
+  }),
+}),
+
+    // DOWNLOAD LICENSE FRONT (Admin only)
+    downloadLicenseFront: builder.query<{ success: boolean; download_url: string; filename: string }, number>({
+      query: (bookingId) => `/bookings/${bookingId}/license/front`,
     }),
+
+    // DOWNLOAD LICENSE BACK (Admin only)
+    downloadLicenseBack: builder.query<{ success: boolean; download_url: string; filename: string }, number>({
+      query: (bookingId) => `/bookings/${bookingId}/license/back`,
+    }),
+    
 
   }),
 })
@@ -277,4 +311,6 @@ export const {
   useRefundBookingPaymentMutation,
   useGetBookingStatsQuery,
   useExportBookingsMutation,
+  useDownloadLicenseFrontQuery,
+  useDownloadLicenseBackQuery,
 } = bookingsApi
