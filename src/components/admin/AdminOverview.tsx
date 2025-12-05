@@ -21,7 +21,10 @@ import { motion } from 'framer-motion'
 // Import existing APIs
 import { useGetAllUsersQuery } from '../../features/api/UserApi'
 import { useGetVehiclesQuery } from '../../features/api/vehiclesApi'
-import { useGetMyBookingsQuery } from '../../features/api/bookingsApi'
+import { 
+  useGetAllBookingsQuery,  // For admin to get ALL bookings
+  useGetBookingStatsQuery  // For stats if available
+} from '../../features/api/bookingsApi'
 
 // Types for our data
 interface DashboardStats {
@@ -93,60 +96,86 @@ const AdminOverview: React.FC = () => {
   } = useGetVehiclesQuery({})
 
   const { 
-    data: bookingsResponse, 
-    isLoading: bookingsLoading, 
-    refetch: refetchBookings 
-  } = useGetMyBookingsQuery()
+  data: allBookingsResponse, 
+  isLoading: bookingsLoading, 
+  refetch: refetchBookings 
+} = useGetAllBookingsQuery({})
+
+const { 
+  data: statsResponse,
+  isLoading: statsLoading 
+} = useGetBookingStatsQuery()
 
   // Parse data
+  const statsFromApi = statsResponse?.stats || {}
   const vehicles = vehiclesResponse?.vehicles || []
-  const bookings = bookingsResponse?.booking || []
-  const bookingsArray = Array.isArray(bookings) ? bookings : [bookings]
+  const bookingsArray = Array.isArray(allBookingsResponse?.data) ? allBookingsResponse?.data : (allBookingsResponse?.data ? [allBookingsResponse.data] : [])
+
+  
 
   // Calculate all statistics
-  const calculateStats = (): DashboardStats => {
-    const today = new Date().toISOString().split('T')[0]
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+ const calculateStats = (): DashboardStats => {
+  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
 
-    // Filter bookings by status
-    const completedBookings = bookingsArray.filter(b => 
-      b.booking_status?.toLowerCase() === 'completed'
-    )
-    
-    const activeBookings = bookingsArray.filter(b => 
-      ['confirmed', 'active', 'pending'].includes(b.booking_status?.toLowerCase() || '')
-    )
-    
-    const pendingBookings = bookingsArray.filter(b => 
-      b.booking_status?.toLowerCase() === 'pending'
-    )
+  // Filter bookings by status - CORRECTED
+  const completedBookings = bookingsArray.filter(b => 
+    b.booking_status?.toLowerCase() === 'completed'
+  )
+  
+  const activeBookings = bookingsArray.filter(b => 
+    ['confirmed', 'active'].includes(b.booking_status?.toLowerCase() || '')
+  )
+  
+  const pendingBookings = bookingsArray.filter(b => 
+    b.booking_status?.toLowerCase() === 'pending'
+  )
 
-    // Today's data
-    const todayBookings = bookingsArray.filter(b => 
-      new Date(b.booking_date).toISOString().split('T')[0] === today
-    )
-    
-    const todayRevenue = todayBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
-
-    // Total revenue from completed bookings
-    const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
-
-    // Available vehicles
-    const availableVehicles = vehicles.filter(v => v.availability === true).length
-
-    return {
-      totalUsers: users.length,
-      totalVehicles: vehicles.length,
-      availableVehicles,
-      totalBookings: bookingsArray.length,
-      activeBookings: activeBookings.length,
-      pendingBookings: pendingBookings.length,
-      completedBookings: completedBookings.length,
-      todayBookings: todayBookings.length,
-      todayRevenue,
-      totalRevenue,
+  // Today's bookings - check if booking_date OR created_at is today
+  const todayBookings = bookingsArray.filter(b => {
+  // Try multiple date fields to find bookings from today
+  const dateFields = ['pickup_date', 'booking_date', 'created_at', 'updated_at']
+  
+  for (const field of dateFields) {
+    const dateValue = b[field as keyof typeof b]
+    if (dateValue && typeof dateValue === 'string') {
+      try {
+        const date = new Date(dateValue)
+        const dateString = date.toISOString().split('T')[0]
+        if (dateString === today) {
+          return true
+        }
+      } catch (e) {
+        // Ignore invalid dates
+      }
     }
   }
+  return false
+})
+
+  // Revenue calculations - ONLY from completed bookings
+  const todayRevenue = todayBookings
+    .filter(b => b.booking_status?.toLowerCase() === 'completed')
+    .reduce((sum, b) => sum + (b.total_amount || 0), 0)
+
+  const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
+
+  // Available vehicles
+  const availableVehicles = vehicles.filter(v => v.availability === true).length
+
+  return {
+    totalUsers: users.length,
+    totalVehicles: vehicles.length,
+    availableVehicles,
+    totalBookings: bookingsArray.length,
+    activeBookings: activeBookings.length,
+    pendingBookings: pendingBookings.length,
+    completedBookings: completedBookings.length,
+    todayBookings: todayBookings.length,
+    todayRevenue,
+    totalRevenue,
+  }
+}
 
   const stats = calculateStats()
 
