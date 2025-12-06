@@ -2,8 +2,14 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { 
   useGetMyBookingsQuery, 
-  useCancelBookingMutation 
+  useCancelBookingMutation,
 } from '../features/api/bookingsApi'
+
+import { 
+  useGetMyPaymentsQuery, 
+  useGetMySpendingStatsQuery,
+  type UserPayment
+} from '../features/api/PaymentApi'
 
 import { useGetMyReviewsQuery, useSubmitReviewMutation, type Review } from '../features/api/reviewApi'
 import { useGetVehicleByIdQuery } from '../features/api/vehiclesApi'
@@ -15,7 +21,9 @@ import {
   User, Star, Settings, Shield, AlertTriangle,
   CreditCard, Smartphone, Home, BarChart3,
   MessageSquare, Heart, LogOut, Edit3,RefreshCw,
-  Phone, Mail, Map, Save
+  Phone, Mail, Map, Save, DollarSign, TrendingUp,
+  Filter, Download, PieChart,
+  AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { loadStripe } from "@stripe/stripe-js"
@@ -24,8 +32,10 @@ import Navbar from '../components/Navbar'
 import { apiDomain } from '../apiDomain/apiDomain'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../store/store'
+
 import { useEffect } from 'react'
 //import type { Review } from '../features/api/reviewApi'
+
 
 const stripePromise = loadStripe('pk_test_51SYBIfE5TRP3rh7FeOjNUDed6nQ2v8OAVQEgn1g6YrYxSKIm7gKoiBJlieusfAfSl1DOWPdaWHNHQIkQ6P5B0kT800IDfFLtsu');
 
@@ -62,6 +72,49 @@ interface User {
   phone_number?: string
   address?: string
 }
+
+interface SpendingStats {
+  total_spent: number
+  this_month_spent: number
+  stripe_payments: number
+  mpesa_payments: number
+  completed_payments: number
+  pending_payments: number
+  failed_payments: number
+  total_payments: number
+  month?: string
+}
+
+// Define payment interface
+// interface UserPayment {
+//   payment_id: number
+//   booking_id: number
+//   amount: number
+//   payment_status: string
+//   payment_method: string
+//   transaction_id?: string
+//   created_at: string
+//   booking_status: string
+//   pickup_date: string
+//   return_date: string
+//   manufacturer: string
+//   model: string
+//   year: string
+// }
+
+interface SpendingStats {
+  total_spent: number
+  this_month_spent: number
+  stripe_payments: number
+  mpesa_payments: number
+  completed_payments: number
+  pending_payments: number
+  failed_payments: number
+  total_payments: number
+  month?: string
+}
+
+
 
 // Profile Tab Component
 const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
@@ -391,6 +444,432 @@ const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+const SpendingTab: React.FC = () => {
+  const [filter, setFilter] = useState<'all' | 'completed' | 'pending' | 'failed'>('all')
+  const [dateRange, setDateRange] = useState<'all' | 'this_month' | 'last_month' | 'this_year'>('all')
+  
+  // Fetch user's payments - TypeScript knows this returns UserPayment[]
+  const { 
+    data: paymentsData, 
+    isLoading: paymentsLoading, 
+    refetch: refetchPayments 
+  } = useGetMyPaymentsQuery()
+  
+  // Fetch spending stats
+  const { 
+    data: statsData, 
+    isLoading: statsLoading, 
+    refetch: refetchStats 
+  } = useGetMySpendingStatsQuery()
+
+  // Now TypeScript knows payments is UserPayment[]
+  const payments:UserPayment[] = paymentsData?.data || []
+  
+  const stats: SpendingStats = statsData?.stats || {
+    total_spent: 0,
+    this_month_spent: 0,
+    stripe_payments: 0,
+    mpesa_payments: 0,
+    completed_payments: 0,
+    pending_payments: 0,
+    failed_payments: 0,
+    total_payments: 0
+  }
+
+  // Filter payments
+  const filteredPayments = payments.filter(payment => {
+    if (filter === 'all') return true
+    return payment.payment_status.toLowerCase() === filter.toLowerCase()
+  })
+
+  // Format date - FIXED: Use string parameter
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    } catch (error) {
+      return 'Invalid date'
+    }
+  }
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount)
+  }
+
+  // Get status color and icon
+  const getPaymentStatusInfo = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return { 
+          color: 'bg-green-100 text-green-800 border-green-200',
+          icon: <CheckCircle size={14} />,
+          label: 'Completed'
+        }
+      case 'pending':
+        return { 
+          color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+          icon: <Clock size={14} />,
+          label: 'Pending'
+        }
+      case 'failed':
+        return { 
+          color: 'bg-red-100 text-red-800 border-red-200',
+          icon: <XCircle size={14} />,
+          label: 'Failed'
+        }
+      case 'refunded':
+        return { 
+          color: 'bg-purple-100 text-purple-800 border-purple-200',
+          icon: <RefreshCw size={14} />,
+          label: 'Refunded'
+        }
+      default:
+        return { 
+          color: 'bg-gray-100 text-gray-800 border-gray-200',
+          icon: <AlertCircle size={14} />,
+          label: status
+        }
+    }
+  }
+
+  // Get payment method icon
+  const getPaymentMethodIcon = (method: string) => {
+    switch (method?.toLowerCase()) {
+      case 'stripe':
+        return <CreditCard className="text-blue-600" size={16} />
+      case 'mpesa':
+        return <Smartphone className="text-green-600" size={16} />
+      default:
+        return <CreditCard className="text-gray-600" size={16} />
+    }
+  }
+
+  // Handle refresh
+  const handleRefresh = () => {
+    refetchPayments()
+    refetchStats()
+    toast.success('Spending data refreshed!')
+  }
+
+  // Handle export
+  const handleExport = () => {
+    toast.info('Export feature coming soon!')
+  }
+
+  if (paymentsLoading || statsLoading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="mx-auto text-blue-600 animate-spin mb-4" size={40} />
+          <p className="text-gray-600">Loading your spending data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-2xl p-8 text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="w-24 h-24 bg-gradient-to-br from-white to-blue-200 rounded-2xl flex items-center justify-center">
+              <DollarSign size={40} className="text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">My Spending</h1>
+              <p className="text-blue-200">Track your payments and spending history</p>
+            </div>
+          </div>
+          <button
+            onClick={handleRefresh}
+            className="bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2"
+          >
+            <RefreshCw size={20} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Spent */}
+        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+              <DollarSign className="text-white" size={24} />
+            </div>
+            <TrendingUp className="text-green-600" size={24} />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+            {formatCurrency(stats.total_spent)}
+          </h3>
+          <p className="text-gray-600 text-sm">Total Spent</p>
+        </div>
+
+        {/* This Month */}
+        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <Calendar className="text-white" size={24} />
+            </div>
+            <BarChart3 className="text-blue-600" size={24} />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+            {formatCurrency(stats.this_month_spent)}
+          </h3>
+          <p className="text-gray-600 text-sm">This Month</p>
+        </div>
+
+        {/* Payment Methods */}
+        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <CreditCard className="text-white" size={24} />
+            </div>
+            <PieChart className="text-purple-600" size={24} />
+          </div>
+          <div className="flex gap-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">{stats.stripe_payments}</h3>
+              <p className="text-gray-600 text-sm">Card</p>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">{stats.mpesa_payments}</h3>
+              <p className="text-gray-600 text-sm">M-Pesa</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Breakdown */}
+        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
+              <CheckCircle className="text-white" size={24} />
+            </div>
+            <Filter className="text-orange-600" size={24} />
+          </div>
+          <div className="flex gap-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">{stats.completed_payments}</h3>
+              <p className="text-green-600 text-sm">Completed</p>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">{stats.pending_payments}</h3>
+              <p className="text-yellow-600 text-sm">Pending</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-5 py-2 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                filter === 'all'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              All Payments
+              <span className="ml-2 px-2 py-1 rounded-full text-xs font-bold bg-white/30">
+                {payments.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setFilter('completed')}
+              className={`px-5 py-2 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                filter === 'completed'
+                  ? 'bg-gradient-to-r from-green-600 to-green-800 text-white shadow-lg'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              Completed
+              <span className="ml-2 px-2 py-1 rounded-full text-xs font-bold bg-white/30">
+                {stats.completed_payments}
+              </span>
+            </button>
+            <button
+              onClick={() => setFilter('pending')}
+              className={`px-5 py-2 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                filter === 'pending'
+                  ? 'bg-gradient-to-r from-yellow-600 to-yellow-800 text-white shadow-lg'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              Pending
+              <span className="ml-2 px-2 py-1 rounded-full text-xs font-bold bg-white/30">
+                {stats.pending_payments}
+              </span>
+            </button>
+            <button
+              onClick={() => setFilter('failed')}
+              className={`px-5 py-2 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                filter === 'failed'
+                  ? 'bg-gradient-to-r from-red-600 to-red-800 text-white shadow-lg'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              Failed
+              <span className="ml-2 px-2 py-1 rounded-full text-xs font-bold bg-white/30">
+                {stats.failed_payments}
+              </span>
+            </button>
+          </div>
+          
+          <button
+            onClick={handleExport}
+            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white px-6 py-2 rounded-xl font-semibold transition-all flex items-center gap-2"
+          >
+            <Download size={18} />
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Payments List */}
+      <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+          <CreditCard className="text-blue-600" size={24} />
+          Payment History
+        </h2>
+        
+        {filteredPayments.length === 0 ? (
+          <div className="text-center py-12">
+            <CreditCard className="mx-auto text-gray-300 mb-4" size={48} />
+            <h3 className="text-xl font-bold text-gray-800 mb-2">No payments found</h3>
+            <p className="text-gray-600">
+              {filter === 'all' 
+                ? "You haven't made any payments yet." 
+                : `No ${filter} payments found.`}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredPayments.map((payment) => {
+              const statusInfo = getPaymentStatusInfo(payment.payment_status)
+              return (
+                <div 
+                  key={payment.payment_id} 
+                  className="border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all hover:border-blue-200"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            Payment #{payment.payment_id}
+                          </h3>
+                          <p className="text-gray-600 text-sm">
+                            Booking #{payment.booking_id} • {payment.manufacturer} {payment.model} ({payment.year})
+                          </p>
+                        </div>
+                        <div className={`px-3 py-1 rounded-full text-sm font-bold border flex items-center gap-2 ${statusInfo.color}`}>
+                          {statusInfo.icon}
+                          {statusInfo.label}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-center gap-3">
+                          {getPaymentMethodIcon(payment.payment_method)}
+                          <div>
+                            <div className="font-semibold text-gray-700">Payment Method</div>
+                            <div className="text-gray-600 capitalize">
+                              {payment.payment_method || 'Not specified'}
+                              {payment.transaction_id && (
+                                <div className="text-xs text-gray-500 truncate max-w-[200px]">
+                                  ID: {payment.transaction_id}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <Calendar className="text-blue-600" size={16} />
+                          <div>
+                            <div className="font-semibold text-gray-700">Payment Date</div>
+                            <div className="text-gray-600">{formatDate(payment.created_at)}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <DollarSign className="text-green-600" size={16} />
+                          <div>
+                            <div className="font-semibold text-gray-700">Amount</div>
+                            <div className="text-xl font-bold text-blue-600">
+                              {formatCurrency(payment.amount)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Booking Dates */}
+                      <div className="mt-4 pt-4 border-t border-gray-100 text-sm">
+                        <div className="flex items-center gap-4">
+                          <div>
+                            <span className="font-semibold text-gray-700">Pickup:</span>{' '}
+                            <span className="text-gray-600">{formatDate(payment.pickup_date)}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">Return:</span>{' '}
+                            <span className="text-gray-600">{formatDate(payment.return_date)}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-700">Booking Status:</span>{' '}
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          (payment.booking_status || 'unknown').toLowerCase() === 'confirmed' 
+                            ? 'bg-green-100 text-green-800'
+                            : (payment.booking_status || 'unknown').toLowerCase() === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {payment.booking_status || 'Unknown'}
+                        </span>
+                              
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Help Text */}
+      {stats.pending_payments > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
+          <div className="flex items-start gap-4">
+            <AlertCircle className="text-yellow-600 mt-1" size={24} />
+            <div>
+              <h4 className="font-bold text-yellow-800 mb-2">Pending Payments Notice</h4>
+              <p className="text-yellow-700">
+                You have {stats.pending_payments} pending payment(s). These payments are being processed 
+                and will be updated once confirmed by our system. If a payment remains pending for more than 
+                24 hours, please contact support.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -964,7 +1443,7 @@ const UserDashboard: React.FC = () => {
   const [createSupportTicket] = useCreateSupportTicketMutation()
   const { data: bookings, isLoading, } = useGetMyBookingsQuery()
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
-  const [activeTab, setActiveTab] = useState<'bookings' | 'profile' | 'reviews' | 'support'>('bookings')
+  const [activeTab, setActiveTab] = useState<'bookings' | 'spending' | 'profile' | 'reviews' | 'support'>('bookings')
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled'>('all')
   const [showCancelModal, setShowCancelModal] = useState<number | null>(null)
   const [cancellingId, setCancellingId] = useState<number | null>(null)
@@ -1187,6 +1666,7 @@ const UserDashboard: React.FC = () => {
                 <nav className="space-y-2">
                   {[
                     { id: 'bookings', label: 'My Bookings', icon: <Calendar size={20} /> },
+                     { id: 'spending', label: 'My Spending', icon: <DollarSign size={20} /> },
                     { id: 'profile', label: 'Profile', icon: <User size={20} /> },
                     { id: 'reviews', label: 'Reviews', icon: <Star size={20} /> },
                     { id: 'support', label: 'Support', icon: <MessageSquare size={20} /> },
@@ -1411,6 +1891,10 @@ const UserDashboard: React.FC = () => {
               {/* Profile Tab */}
               {activeTab === 'profile' && user && (
                 <ProfileTab user={user} />
+              )}
+
+              {activeTab === 'spending' && (
+                <SpendingTab />
               )}
 
               {/* Reviews Tab */}
