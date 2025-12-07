@@ -13,18 +13,20 @@ const AdminDashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Fixed Top Navbar */}
-      <Navbar />
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <Navbar />
+      </div>
 
-      {/* Mobile Menu Button - Positioned inside navbar area */}
+      {/* Mobile Menu Button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-20 left-4 z-50 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg transition-colors"
+        className="lg:hidden fixed top-4 left-4 z-50 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg transition-colors mt-16"
       >
         Menu
       </button>
 
-      <div className="flex h-screen pt-16"> {/* ← THIS IS THE KEY LINE */}
-        {/* Sidebar */}
+      <div className="flex h-screen">
+        {/* Sidebar - starts below navbar */}
         <aside
           className={`
             fixed lg:static inset-y-0 left-0 z-40
@@ -32,10 +34,10 @@ const AdminDashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             transform transition-transform duration-300 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             overflow-y-auto
-            pt-16 lg:pt-0  // ← Important: don't double-offset on desktop
+            top-16 lg:top-0  /* ← This ensures sidebar starts below navbar on mobile */
           `}
         >
-          <div className="h-full overflow-y-auto pb-10">
+          <div className="h-full overflow-y-auto">
             <AdminSidebar />
           </div>
         </aside>
@@ -48,9 +50,9 @@ const AdminDashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           />
         )}
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        {/* Main Content Area - Added 10px (2.5rem) space below navbar */}
+        <main className="flex-1 overflow-y-auto pt-[100px] lg:pt-10"> 
+          <div className="p-4 lg:p-6 w-full">
             {children}
           </div>
         </main>

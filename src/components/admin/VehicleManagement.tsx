@@ -1297,7 +1297,7 @@ const VehicleManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-2xl shadow-xl border border-blue-100 p-6">
+      <div className="bg-white rounded-2xl shadow-xl border border-blue-100 p-16">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">

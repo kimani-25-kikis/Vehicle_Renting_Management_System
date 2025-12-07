@@ -67,6 +67,7 @@ const GlowingButton = ({ children, onClick, variant = 'primary', className = '',
 )
 
 // FIXED: Download driver license function
+// FIXED: Download driver license function - Node.js compatible
 const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
   try {
     // Get token from localStorage
@@ -85,66 +86,112 @@ const downloadLicense = async (bookingId: number, side: 'front' | 'back') => {
     }
 
     // Clean token
-    const actualToken = tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '');
+    const token = tokenWithBearer.replace(/^"|"$/g, '');
+    const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
 
-    // FIXED: Use correct endpoint URL (without duplicate /bookings/)
+    console.log(`🔄 Getting ${side} license for booking ${bookingId}`);
+
+    // Make the API call
     const response = await fetch(
       `http://localhost:3000/api/bookings/${bookingId}/license/${side}`,
       {
         headers: {
-          'Authorization': `Bearer ${actualToken}`,
+          'Authorization': authToken,
         },
       }
     );
 
     if (!response.ok) {
-      if (response.status === 404) {
-        toast.error(`License ${side} image not found for this booking`);
-        return false;
-      }
-      const error = await response.json().catch(() => ({ error: 'Failed to fetch license' }));
-      throw new Error(error.error || 'Failed to fetch license');
+      const errorData = await response.json().catch(() => ({ error: 'Failed to fetch license' }));
+      console.error('❌ Backend error:', errorData);
+      toast.error(errorData.error || `Failed to fetch license ${side}`);
+      return false;
     }
 
-    // Check content type for blob or JSON response
+    // Check the response type
     const contentType = response.headers.get('content-type');
+    console.log(`📦 Response Content-Type: ${contentType}`);
     
-    if (contentType?.includes('application/json')) {
-      // Handle JSON response with download URL
-      const data = await response.json();
+    // CASE 1: Direct image file (backend served it directly)
+    if (contentType && contentType.includes('image/')) {
+      console.log(`✅ Direct image download`);
       
-      if (data.success && data.url) {
-        // Create a temporary link to trigger download
-        const link = document.createElement('a');
-        link.href = data.url;
-        link.download = `driver-license-${side}-${bookingId}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast.success(`Downloading ${side} license...`);
-        return true;
-      } else {
-        toast.error(data.error || 'Failed to get download URL');
-        return false;
+      // Get filename from headers or generate default
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `driver-license-${side}-${bookingId}.jpg`;
+      
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) filename = match[1];
       }
-    } else {
-      // Handle direct file download
+      
+      // Create blob and download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
       link.href = url;
-      link.download = `driver-license-${side}-${bookingId}.jpg`;
+      link.download = filename;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(link);
       
-      toast.success(`Downloading ${side} license...`);
+      // Cleanup
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+      }, 100);
+      
+      toast.success(`✅ ${side} license downloaded!`);
       return true;
     }
+    
+    // CASE 2: JSON response with URL (backend returned URL)
+    else if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+      console.log(`📄 JSON response:`, data);
+      
+      if (!data.success) {
+        toast.error(data.error || 'Download failed');
+        return false;
+      }
+      
+      if (data.download_url) {
+        console.log(`🔗 Opening URL: ${data.download_url}`);
+        
+        // For image URLs, open in new tab
+        window.open(data.download_url, '_blank');
+        
+        toast.success(`🔗 Opening ${side} license...`);
+        return true;
+      } else {
+        toast.error('No download URL available');
+        return false;
+      }
+    }
+    
+    // CASE 3: Unknown response
+    else {
+      console.warn(`⚠️ Unknown response type: ${contentType}`);
+      
+      // Try to parse as JSON anyway
+      try {
+        const data = await response.json();
+        if (data.download_url) {
+          window.open(data.download_url, '_blank');
+          toast.success(`🔗 Opening ${side} license...`);
+          return true;
+        }
+      } catch {
+        // Not JSON
+      }
+      
+      toast.error('Unexpected response from server');
+      return false;
+    }
+    
   } catch (error: any) {
-    console.error('Download error:', error);
+    console.error('❌ Download error:', error);
     toast.error('Failed to download license: ' + (error.message || 'Unknown error'));
     return false;
   }

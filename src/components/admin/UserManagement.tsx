@@ -3,14 +3,16 @@ import React, { useState, useEffect } from 'react'
 import { 
   Users, Search, Filter, Edit, Trash2, Eye, 
   Shield, Mail, Phone, Calendar, CheckCircle, 
-  XCircle, MoreVertical, Download, Upload,
+  XCircle, MoreVertical, Download, 
   Plus, RefreshCw, UserPlus, Loader,
-  Ban, UserCheck, MailCheck, UserX, UserCog,
-  Sparkles, Zap, Crown, BadgeCheck, TrendingUp,
-  Activity, Globe, Lock, Unlock, CreditCard,
-  MessageSquare, Bell, Star, ChevronRight,
-  Grid, List, Columns, Sparkle, Rocket,
-  Target, Award, Medal, Trophy, Coffee
+  Crown, TrendingUp,
+  Activity, Globe, Lock, Unlock,
+  MessageSquare, Bell, 
+  Grid, List, 
+  Target, Award, Trophy,
+  ChevronDown, ChevronUp,
+  UserCheck, UserX, UserCog,
+  Sparkles, Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -33,40 +35,28 @@ interface User {
   password?: string
   phone_number?: string
   address?: string
-  user_type: 'user' | 'admin'
+  user_type: 'customer' | 'admin'
   created_at: string
   updated_at: string
 }
 
-// Animated components
-const FloatingCard = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay }}
-    className="relative group"
-  >
-    {children}
-  </motion.div>
-)
+// Formatting functions
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
 
-const GlowingButton = ({ children, onClick, variant = 'primary', className = '' }: any) => (
-  <motion.button
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-    onClick={onClick}
-    className={`relative overflow-hidden rounded-2xl font-bold transition-all duration-300 ${className} ${
-      variant === 'primary' 
-        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl hover:shadow-blue-500/30' 
-        : variant === 'danger'
-        ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg hover:shadow-xl hover:shadow-red-500/30'
-        : 'bg-gradient-to-r from-gray-800 to-gray-900 text-white shadow-lg hover:shadow-xl hover:shadow-gray-500/30'
-    }`}
-  >
-    <span className="relative z-10">{children}</span>
-    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-  </motion.button>
-)
+const formatDateTime = (dateString: string) => {
+  return new Date(dateString).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 const UserManagement: React.FC = () => {
   // API Hooks
@@ -84,11 +74,11 @@ const UserManagement: React.FC = () => {
 
   // States
   const [searchTerm, setSearchTerm] = useState('')
-  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'admin'>('all')
+  const [roleFilter, setRoleFilter] = useState<'all' | 'customer' | 'admin'>('all')
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
   const [actionMenu, setActionMenu] = useState<number | null>(null)
   const [isProcessing, setIsProcessing] = useState<number | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [showFilters, setShowFilters] = useState(false)
   const [showNewUserModal, setShowNewUserModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState<number | null>(null)
   const [showEditModal, setShowEditModal] = useState<User | null>(null)
@@ -100,8 +90,22 @@ const UserManagement: React.FC = () => {
     email: '',
     phone_number: '',
     password: '',
-    user_type: 'user' as 'user' | 'admin'
+    user_type: 'customer' as 'customer' | 'admin'
   })
+
+  // Calculate new users today
+  const getNewUsersToday = () => {
+    const today = new Date().toDateString()
+    return users.filter(user => 
+      new Date(user.created_at).toDateString() === today
+    ).length
+  }
+
+  // Stats calculations
+  const totalUsers = users.length
+  const adminCount = users.filter(u => u.user_type === 'admin').length
+  const customerCount = users.filter(u => u.user_type === 'customer').length
+  const newToday = getNewUsersToday()
 
   // Handle API errors
   useEffect(() => {
@@ -131,54 +135,51 @@ const UserManagement: React.FC = () => {
 
   // CRUD Operations
   const handleCreateUser = async () => {
-  // Validate required fields
-  if (!newUser.first_name || !newUser.last_name || !newUser.email || !newUser.password) {
-    toast.error('Please fill in all required fields')
-    return
-  }
+    if (!newUser.first_name || !newUser.last_name || !newUser.email || !newUser.password) {
+      toast.error('Please fill in all required fields')
+      return
+    }
 
-  // Validate password length
-  if (newUser.password.length < 8) {
-    toast.error('Password must be at least 8 characters long')
-    return
-  }
+    if (newUser.password.length < 8) {
+      toast.error('Password must be at least 8 characters long')
+      return
+    }
 
-  try {
-    setIsProcessing(-1)
-    
-    // Call the createUser mutation
-    await createUser({
-      first_name: newUser.first_name,
-      last_name: newUser.last_name,
-      email: newUser.email,
-      phone_number: newUser.phone_number || undefined,
-      password: newUser.password, // Send the password
-      user_type: newUser.user_type,
-    }).unwrap()
-    
-    toast.success('User created successfully!', {
-      icon: <UserPlus className="text-green-500" />,
-    })
-    
-    setShowNewUserModal(false)
-    setNewUser({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone_number: '',
-      password: '', // Reset password
-      user_type: 'user'
-    })
-    
-    refetch()
-  } catch (error: any) {
-    toast.error('Failed to create user', {
-      description: error?.data?.error || error?.data?.message || 'Please try again'
-    })
-  } finally {
-    setIsProcessing(null)
+    try {
+      setIsProcessing(-1)
+      
+      await createUser({
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        email: newUser.email,
+        phone_number: newUser.phone_number || undefined,
+        password: newUser.password,
+        user_type: newUser.user_type,
+      }).unwrap()
+      
+      toast.success('User created successfully!', {
+        icon: <UserPlus className="text-green-500" />,
+      })
+      
+      setShowNewUserModal(false)
+      setNewUser({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone_number: '',
+        password: '',
+        user_type: 'customer'
+      })
+      
+      refetch()
+    } catch (error: any) {
+      toast.error('Failed to create user', {
+        description: error?.data?.error || error?.data?.message || 'Please try again'
+      })
+    } finally {
+      setIsProcessing(null)
+    }
   }
-}
 
   const handleUpdateUser = async (user: User, updatedData: Partial<User>) => {
     if (!user) return
@@ -221,20 +222,25 @@ const UserManagement: React.FC = () => {
     }
   }
 
-  const handleUpdateRole = async (userId: number, newRole: string) => {
+  // FIXED: Role update function - Use updateUserDetails instead of updateUserType
+  const handleUpdateRole = async (userId: number, currentRole: string) => {
     setIsProcessing(userId)
+    const newRole = currentRole === 'admin' ? 'customer' : 'admin'
+    
     try {
-      await updateUserType({
+      // FIX: Use updateUserDetails instead of updateUserType
+      await updateUserDetails({
         user_id: userId,
         user_type: newRole
       }).unwrap()
       
-      toast.success(`User role updated to ${newRole}!`, {
+      toast.success(`User role updated to ${newRole === 'admin' ? 'Administrator' : 'Customer'}!`, {
         icon: <Shield className="text-orange-500" />,
       })
     } catch (error: any) {
+      console.error('Role update error:', error)
       toast.error('Failed to update user role', {
-        description: error?.data?.message || 'Please try again'
+        description: error?.data?.message || error?.data?.error || 'Please try again'
       })
     } finally {
       setIsProcessing(null)
@@ -242,7 +248,7 @@ const UserManagement: React.FC = () => {
     }
   }
 
-  const handleBulkAction = async (action: 'delete' | 'makeAdmin' | 'makeUser') => {
+  const handleBulkAction = async (action: 'delete' | 'makeAdmin' | 'makeCustomer') => {
     if (selectedUsers.length === 0) {
       toast.error('Please select users first')
       return
@@ -266,7 +272,10 @@ const UserManagement: React.FC = () => {
         case 'makeAdmin':
           await Promise.all(
             selectedUsers.map(userId => 
-              updateUserType({ user_id: userId, user_type: 'admin' }).unwrap()
+              updateUserDetails({ 
+                user_id: userId, 
+                user_type: 'admin' // FIX: Use updateUserDetails
+              }).unwrap()
             )
           )
           toast.success(`${selectedUsers.length} users promoted to admin!`, {
@@ -274,13 +283,16 @@ const UserManagement: React.FC = () => {
           })
           break
         
-        case 'makeUser':
+        case 'makeCustomer':
           await Promise.all(
             selectedUsers.map(userId => 
-              updateUserType({ user_id: userId, user_type: 'user' }).unwrap()
+              updateUserDetails({ 
+                user_id: userId, 
+                user_type: 'customer' // FIX: Use updateUserDetails
+              }).unwrap()
             )
           )
-          toast.success(`${selectedUsers.length} admins demoted to user!`, {
+          toast.success(`${selectedUsers.length} admins demoted to customer!`, {
             icon: <Users className="text-blue-500" />,
           })
           break
@@ -288,707 +300,577 @@ const UserManagement: React.FC = () => {
       setSelectedUsers([])
     } catch (error: any) {
       toast.error(`Failed to perform bulk ${action}`, {
-        description: 'Some actions may have failed'
+        description: error?.data?.message || 'Some actions may have failed'
       })
     } finally {
       setIsProcessing(null)
     }
   }
 
-  // Formatting functions
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  // Get status color
+  const getRoleColor = (role: string) => {
+    switch (role.toLowerCase()) {
+      case 'admin':
+        return 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+      case 'customer':
+        return 'bg-blue-50 text-blue-700 border border-blue-200'
+      default:
+        return 'bg-gray-50 text-gray-700 border border-gray-200'
+    }
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center">
         <div className="text-center">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="mx-auto mb-6"
           >
-            <Sparkles className="text-blue-400" size={48} />
+            <Users className="text-blue-600" size={48} />
           </motion.div>
-          <h3 className="text-2xl font-bold text-white mb-2">Loading User Universe</h3>
-          <p className="text-gray-400">Gathering cosmic user data...</p>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Loading User Data</h3>
+          <p className="text-gray-600">Please wait while we fetch user information...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-6">
-      {/* Animated Background Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-blue-500/20 rounded-full"
-            initial={{ 
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight 
-            }}
-            animate={{ 
-              y: [null, -50, 50],
-              opacity: [0.2, 0.8, 0.2]
-            }}
-            transition={{ 
-              duration: 3 + Math.random() * 2,
-              repeat: Infinity,
-              delay: i * 0.1 
-            }}
-          />
-        ))}
+    <div className="min-h-[calc(100vh-10rem)] pt-20">
+      {/* Header with spacing */}
+      <div className="mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-blue-900 mb-2">
+              User Management
+            </h1>
+            <p className="text-gray-600">
+              Manage and monitor all user accounts in the system
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowNewUserModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
+            >
+              <Plus size={18} />
+              <span>Create User</span>
+            </button>
+            <button
+              onClick={() => refetch()}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-lg font-medium transition-all flex items-center gap-2"
+            >
+              <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Main Content */}
-      <div className="relative space-y-6">
-        {/* Header with Animated Stats */}
-        <FloatingCard delay={0.1}>
-          <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-8 border border-gray-700 shadow-2xl">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl">
-                    <Users className="text-white" size={28} />
-                  </div>
-                  <div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                      User Galaxy
-                    </h1>
-                    <p className="text-gray-400 mt-1">Manage your cosmic user community</p>
-                  </div>
-                </div>
-                
-                {/* Animated Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                  <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 border border-gray-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-400 text-sm">Total Users</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">{users.length}</h3>
-                      </div>
-                      <Users className="text-blue-400" size={20} />
-                    </div>
-                  </motion.div>
-                  
-                  <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 border border-gray-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-400 text-sm">Admins</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">
-                          {users.filter(u => u.user_type === 'admin').length}
-                        </h3>
-                      </div>
-                      <Crown className="text-yellow-400" size={20} />
-                    </div>
-                  </motion.div>
-                  
-                  <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 border border-gray-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-400 text-sm">Active Today</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">
-                          {users.length}
-                        </h3>
-                      </div>
-                      <Activity className="text-green-400" size={20} />
-                    </div>
-                  </motion.div>
-                  
-                  <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 border border-gray-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-400 text-sm">Growth</p>
-                        <h3 className="text-2xl font-bold text-white mt-1">+12%</h3>
-                      </div>
-                      <TrendingUp className="text-purple-400" size={20} />
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-              
-              <div className="flex flex-col gap-3">
-                <GlowingButton 
-                  onClick={() => setShowNewUserModal(true)}
-                  className="px-6 py-4 flex items-center gap-2"
-                >
-                  <Plus size={20} />
-                  Create New User
-                </GlowingButton>
-                
-                <GlowingButton 
-                  onClick={() => refetch()}
-                  variant="secondary"
-                  className="px-6 py-4 flex items-center gap-2"
-                >
-                  <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
-                  Refresh Universe
-                </GlowingButton>
-              </div>
+      {/* Stats Dashboard with hover effects */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Total Users Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Users className="text-blue-600" size={20} />
             </div>
+            <Activity className="text-green-500" size={20} />
           </div>
-        </FloatingCard>
+          <h3 className="text-2xl font-bold text-gray-900 mb-1">
+            {totalUsers}
+          </h3>
+          <p className="text-gray-600 text-sm mb-2">Total Users</p>
+          <div className="flex items-center gap-1 text-green-600 text-xs">
+            <TrendingUp size={12} />
+            <span>All active accounts</span>
+          </div>
+        </div>
 
-        {/* Controls Bar */}
-        <FloatingCard delay={0.2}>
-          <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-6 border border-gray-700 shadow-2xl">
-            <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-              {/* Search with Glow Effect */}
-              <div className="relative flex-1 min-w-[300px]">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Search across the user galaxy..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-              
-              {/* View Toggle */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-3 rounded-2xl transition-all ${viewMode === 'grid' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}
-                >
-                  <Grid size={20} />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-3 rounded-2xl transition-all ${viewMode === 'list' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}
-                >
-                  <List size={20} />
-                </button>
-              </div>
+        {/* Admins Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <Crown className="text-yellow-600" size={20} />
+            </div>
+            <Shield className="text-yellow-500" size={20} />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-1">
+            {adminCount}
+          </h3>
+          <p className="text-gray-600 text-sm mb-2">Administrators</p>
+          <div className="flex items-center gap-1 text-yellow-600 text-xs">
+            <Crown size={12} />
+            <span>System administrators</span>
+          </div>
+        </div>
 
+        {/* Regular Customers Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <UserCheck className="text-purple-600" size={20} />
+            </div>
+            <Globe className="text-purple-500" size={20} />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-1">
+            {customerCount}
+          </h3>
+          <p className="text-gray-600 text-sm mb-2">Customers</p>
+          <div className="flex items-center gap-1 text-purple-600 text-xs">
+            <UserCheck size={12} />
+            <span>Customer accounts</span>
+          </div>
+        </div>
+
+        {/* New Today Card - Added */}
+        <div className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <Sparkles className="text-green-600" size={20} />
+            </div>
+            <Clock className="text-green-500" size={20} />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-1">
+            {newToday}
+          </h3>
+          <p className="text-gray-600 text-sm mb-2">New Today</p>
+          <div className="flex items-center gap-1 text-green-600 text-xs">
+            <TrendingUp size={12} />
+            <span>Registered today</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters Bar */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 text-gray-700 hover:text-blue-600 text-sm"
+            >
+              <Filter size={16} />
+              Filters
+              {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            
+            {selectedUsers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  {selectedUsers.length} selected
+                </span>
+                <button
+                  onClick={() => setSelectedUsers([])}
+                  className="text-sm text-red-600 hover:text-red-700"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full lg:w-64 pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Expanded Filters */}
+        {showFilters && (
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Role Filter */}
-              <div className="flex gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-2">
+                  User Role
+                </label>
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value as any)}
-                  className="bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
                 >
-                  <option value="all" className="bg-gray-800">All Roles</option>
-                  <option value="customer" className="bg-gray-800">Users</option>
-                  <option value="admin" className="bg-gray-800">Admins</option>
+                  <option value="all">All Roles</option>
+                  <option value="customer">Customers</option>
+                  <option value="admin">Administrators</option>
                 </select>
               </div>
-            </div>
 
-            {/* Bulk Actions */}
-            {selectedUsers.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 pt-4 border-t border-gray-700"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl font-semibold border border-blue-500/30">
-                      {selectedUsers.length} selected
-                      {isProcessing === -1 && <Loader className="inline ml-2 animate-spin" size={16} />}
-                    </span>
-                    
-                    <div className="flex gap-2">
-                      <GlowingButton
-                        onClick={() => handleBulkAction('makeAdmin')}
-                        className="px-4 py-2 text-sm"
-                      >
-                        <Crown size={14} className="mr-2" />
-                        Make Admins
-                      </GlowingButton>
-                      
-                      <GlowingButton
-                        onClick={() => handleBulkAction('makeUser')}
-                        variant="secondary"
-                        className="px-4 py-2 text-sm"
-                      >
-                        <Users size={14} className="mr-2" />
-                        Make Users
-                      </GlowingButton>
-                      
-                      <GlowingButton
-                        onClick={() => handleBulkAction('delete')}
-                        variant="danger"
-                        className="px-4 py-2 text-sm"
-                      >
-                        <Trash2 size={14} className="mr-2" />
-                        Delete Selected
-                      </GlowingButton>
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={() => setSelectedUsers([])}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    Clear Selection
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </div>
-        </FloatingCard>
-
-        {/* Users Display - Grid View */}
-        {viewMode === 'grid' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredUsers.map((user, index) => (
-              <FloatingCard key={user.user_id} delay={index * 0.05}>
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 border border-gray-700 shadow-2xl group hover:border-blue-500/30 transition-all duration-300"
-                >
-                  {/* User Header */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl">
-                          {user.first_name[0]}{user.last_name[0]}
-                        </div>
-                        {user.user_type === 'admin' && (
-                          <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-                            <Crown size={12} className="text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-white group-hover:text-blue-400 transition-colors">
-                          {user.first_name} {user.last_name}
-                        </h3>
-                        <p className="text-gray-400 text-sm">ID: #{user.user_id}</p>
-                      </div>
-                    </div>
-                    
-                    {/* Quick Actions */}
-                    <div className="relative">
-                      <button
-                        onClick={() => setActionMenu(actionMenu === user.user_id ? null : user.user_id)}
-                        className="p-2 hover:bg-gray-700 rounded-xl transition-colors"
-                      >
-                        <MoreVertical className="text-gray-400" size={20} />
-                      </button>
-                      
-                      <AnimatePresence>
-                        {actionMenu === user.user_id && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="absolute right-0 top-10 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl z-10 min-w-[200px] overflow-hidden"
-                          >
-                            <button 
-                              onClick={() => {
-                                setShowEditModal(user)
-                              }}
-                              className="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-gray-300"
-                            >
-                              <Edit size={16} />
-                              Edit Profile
-                            </button>
-                            <button 
-                              onClick={() => handleUpdateRole(user.user_id, user.user_type === 'admin' ? 'user' : 'admin')}
-                              className="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center gap-2 text-gray-300"
-                            >
-                              <Shield size={16} />
-                              {user.user_type === 'admin' ? 'Demote to User' : 'Promote to Admin'}
-                            </button>
-                            <button 
-                              onClick={() => setShowDeleteModal(user.user_id)}
-                              className="w-full text-left px-4 py-3 hover:bg-red-900/30 flex items-center gap-2 text-red-400"
-                            >
-                              <Trash2 size={16} />
-                              Delete User
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* User Info */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <Mail size={16} />
-                      <span className="text-sm truncate">{user.email}</span>
-                    </div>
-                    
-                    {user.phone_number && (
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <Phone size={16} />
-                        <span className="text-sm">{user.phone_number}</span>
-                      </div>
-                    )}
-
-                    {/* Role Badge */}
-                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold ${
-                      user.user_type === 'admin' 
-                        ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' 
-                        : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                    }`}>
-                      {user.user_type === 'admin' ? <Crown size={14} /> : <Users size={14} />}
-                      {user.user_type === 'admin' ? 'Administrator' : 'Regular User'}
-                    </div>
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-700">
-                      <div>
-                        <p className="text-gray-500 text-xs">Joined</p>
-                        <p className="text-white text-sm">{formatDate(user.created_at)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs">Last Active</p>
-                        <p className="text-white text-sm">{formatDate(user.updated_at)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Select Checkbox */}
-                  <div className="absolute top-4 left-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedUsers.includes(user.user_id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedUsers(prev => [...prev, user.user_id])
-                        } else {
-                          setSelectedUsers(prev => prev.filter(id => id !== user.user_id))
-                        }
-                      }}
-                      className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-                    />
-                  </div>
-                </motion.div>
-              </FloatingCard>
-            ))}
-          </div>
-        )}
-
-        {/* Users Display - List View */}
-        {viewMode === 'list' && (
-          <FloatingCard delay={0.3}>
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl border border-gray-700 shadow-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700">
-                      <th className="px-8 py-6 text-left">
-                        <input
-                          type="checkbox"
-                          checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedUsers(filteredUsers.map(user => user.user_id))
-                            } else {
-                              setSelectedUsers([])
-                            }
-                          }}
-                          className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-                        />
-                      </th>
-                      <th className="px-8 py-6 text-left font-semibold text-gray-300">User</th>
-                      <th className="px-8 py-6 text-left font-semibold text-gray-300">Contact</th>
-                      <th className="px-8 py-6 text-left font-semibold text-gray-300">Role</th>
-                      <th className="px-8 py-6 text-left font-semibold text-gray-300">Last Updated</th>
-                      <th className="px-8 py-6 text-left font-semibold text-gray-300">Joined</th>
-                      <th className="px-8 py-6 text-left font-semibold text-gray-300">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {filteredUsers.map((user) => (
-                      <motion.tr 
-                        key={user.user_id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="hover:bg-gray-800/50 transition-colors"
-                      >
-                        <td className="px-8 py-6">
-                          <input
-                            type="checkbox"
-                            checked={selectedUsers.includes(user.user_id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedUsers(prev => [...prev, user.user_id])
-                              } else {
-                                setSelectedUsers(prev => prev.filter(id => id !== user.user_id))
-                              }
-                            }}
-                            className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-                          />
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold">
-                              {user.first_name[0]}{user.last_name[0]}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-white">
-                                {user.first_name} {user.last_name}
-                              </div>
-                              <div className="text-gray-400 text-sm">ID: #{user.user_id}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-white">
-                              <Mail size={16} className="text-gray-400" />
-                              {user.email}
-                            </div>
-                            {user.phone_number && (
-                              <div className="flex items-center gap-2 text-gray-400 text-sm">
-                                <Phone size={16} className="text-gray-400" />
-                                {user.phone_number}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <span className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
-                            user.user_type === 'admin' 
-                              ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' 
-                              : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                          }`}>
-                            {user.user_type === 'admin' ? <Crown size={16} /> : <Users size={16} />}
-                            {user.user_type}
-                          </span>
-                        </td>
-                        <td className="px-8 py-6 text-gray-300 text-sm">
-                          {formatDateTime(user.updated_at)}
-                        </td>
-                        <td className="px-8 py-6 text-gray-300">
-                          <div className="flex items-center gap-2">
-                            <Calendar size={16} className="text-gray-400" />
-                            {formatDate(user.created_at)}
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="flex gap-2">
-                            <GlowingButton
-                              onClick={() => setShowEditModal(user)}
-                              className="px-4 py-2 text-sm"
-                            >
-                              <Edit size={14} />
-                            </GlowingButton>
-                            <GlowingButton
-                              onClick={() => handleUpdateRole(user.user_id, user.user_type === 'admin' ? 'user' : 'admin')}
-                              variant="secondary"
-                              className="px-4 py-2 text-sm"
-                            >
-                              <Shield size={14} />
-                            </GlowingButton>
-                            <GlowingButton
-                              onClick={() => setShowDeleteModal(user.user_id)}
-                              variant="danger"
-                              className="px-4 py-2 text-sm"
-                            >
-                              <Trash2 size={14} />
-                            </GlowingButton>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Date Joined */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-2">
+                  Joined Date
+                </label>
+                <input
+                  type="date"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                  disabled
+                />
               </div>
 
-              {filteredUsers.length === 0 && (
-                <div className="text-center py-16">
-                  <div className="w-20 h-20 bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-700">
-                    <Users className="text-gray-600" size={40} />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-2">No Users Found</h3>
-                  <p className="text-gray-400">Try adjusting your search or create a new user</p>
-                </div>
-              )}
+              {/* Action Buttons */}
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={() => {
+                    setSearchTerm('')
+                    setRoleFilter('all')
+                    setShowFilters(false)
+                  }}
+                  className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm flex-1"
+                >
+                  Clear Filters
+                </button>
+                <button
+                  onClick={() => setShowFilters(false)}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex-1"
+                >
+                  Apply Filters
+                </button>
+              </div>
             </div>
-          </FloatingCard>
+          </div>
+        )}
+      </div>
+
+      {/* Users Table - Professional and compact */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          {error ? (
+            <div className="flex items-center justify-center h-48">
+              <div className="text-center">
+                <XCircle className="mx-auto text-red-500 mb-3" size={40} />
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Error Loading Users</h3>
+                <p className="text-gray-600 text-sm mb-3">Failed to load user data.</p>
+                <button
+                  onClick={() => refetch()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="mx-auto text-gray-300 mb-3" size={40} />
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">No users found</h3>
+              <p className="text-gray-600 text-sm">Try adjusting your filters or create a new user.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedUsers(filteredUsers.map(user => user.user_id))
+                        } else {
+                          setSelectedUsers([])
+                        }
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    User Details
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Contact
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredUsers.map((user) => (
+                  <tr 
+                    key={user.user_id} 
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.includes(user.user_id)}
+                        onChange={() => {
+                          if (selectedUsers.includes(user.user_id)) {
+                            setSelectedUsers(prev => prev.filter(id => id !== user.user_id))
+                          } else {
+                            setSelectedUsers(prev => [...prev, user.user_id])
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-medium text-sm">
+                          {user.first_name[0]}{user.last_name[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">
+                            {user.first_name} {user.last_name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            ID: #{user.user_id}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-gray-900 truncate max-w-[150px]">
+                          <Mail size={12} className="text-gray-400 flex-shrink-0" />
+                          <span className="truncate">{user.email}</span>
+                        </div>
+                        {user.phone_number && (
+                          <div className="flex items-center gap-2 text-xs text-gray-500 truncate max-w-[150px]">
+                            <Phone size={10} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{user.phone_number}</span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getRoleColor(user.user_type)}`}>
+                        {user.user_type === 'admin' ? <Crown size={10} /> : <Users size={10} />}
+                        <span>{user.user_type === 'admin' ? 'Admin' : 'Customer'}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm text-gray-900 whitespace-nowrap">
+                        {formatDate(user.created_at)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowEditModal(user)}
+                          className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                          title="Edit User"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleUpdateRole(user.user_id, user.user_type)}
+                          className="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors"
+                          title={user.user_type === 'admin' ? 'Demote to Customer' : 'Promote to Admin'}
+                        >
+                          <Shield size={14} />
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteModal(user.user_id)}
+                          className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Bulk Actions */}
+        {selectedUsers.length > 0 && (
+          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between bg-blue-50">
+            <div className="text-sm text-gray-700">
+              <span className="font-medium">{selectedUsers.length}</span> users selected
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleBulkAction('makeAdmin')}
+                disabled={isProcessing === -1}
+                className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium text-xs transition-colors disabled:opacity-70"
+              >
+                {isProcessing === -1 ? 'Processing...' : 'Make Admins'}
+              </button>
+              <button
+                onClick={() => handleBulkAction('makeCustomer')}
+                disabled={isProcessing === -1}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-xs transition-colors disabled:opacity-70"
+              >
+                {isProcessing === -1 ? 'Processing...' : 'Make Customers'}
+              </button>
+              <button
+                onClick={() => handleBulkAction('delete')}
+                disabled={isProcessing === -1}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-xs transition-colors disabled:opacity-70"
+              >
+                {isProcessing === -1 ? 'Processing...' : 'Delete'}
+              </button>
+            </div>
+          </div>
         )}
 
-        {/* Empty State */}
-        {filteredUsers.length === 0 && users.length === 0 && (
-          <FloatingCard>
-            <div className="text-center py-16">
-              <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6"
-              >
-                <Rocket className="text-white" size={40} />
-              </motion.div>
-              <h3 className="text-3xl font-bold text-white mb-3">Welcome to User Galaxy!</h3>
-              <p className="text-gray-400 mb-8">Your user universe is empty. Launch your first user into orbit!</p>
-              <GlowingButton
-                onClick={() => setShowNewUserModal(true)}
-                className="px-8 py-4 text-lg"
-              >
-                <Rocket size={20} className="mr-2" />
-                Launch First User
-              </GlowingButton>
+        {/* Footer */}
+        {filteredUsers.length > 0 && (
+          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+            <div className="text-sm text-gray-700">
+              Showing <span className="font-medium">{filteredUsers.length}</span> of{' '}
+              <span className="font-medium">{users.length}</span> users
             </div>
-          </FloatingCard>
+          </div>
         )}
       </div>
 
       {/* Create User Modal */}
-      {/* Create User Modal */}
-<AnimatePresence>
-  {showNewUserModal && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={() => setShowNewUserModal(false)}
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-8 border border-gray-700 shadow-2xl max-w-md w-full"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl">
-              <UserPlus className="text-white" size={24} />
-            </div>
-            <h3 className="text-2xl font-bold text-white">Create New User</h3>
-          </div>
-          <button
+      <AnimatePresence>
+        {showNewUserModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
             onClick={() => setShowNewUserModal(false)}
-            className="p-2 hover:bg-gray-700 rounded-xl transition-colors"
           >
-            <XCircle className="text-gray-400" size={24} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-400 text-sm mb-2">First Name *</label>
-              <input
-                type="text"
-                value={newUser.first_name}
-                onChange={(e) => setNewUser(prev => ({ ...prev, first_name: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="John"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-gray-400 text-sm mb-2">Last Name *</label>
-              <input
-                type="text"
-                value={newUser.last_name}
-                onChange={(e) => setNewUser(prev => ({ ...prev, last_name: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Doe"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-gray-400 text-sm mb-2">Email *</label>
-            <input
-              type="email"
-              value={newUser.email}
-              onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="user@example.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-400 text-sm mb-2">Phone Number</label>
-            <input
-              type="tel"
-              value={newUser.phone_number}
-              onChange={(e) => setNewUser(prev => ({ ...prev, phone_number: e.target.value }))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="+1 234 567 8900"
-            />
-          </div>
-
-          {/* ADD PASSWORD FIELD */}
-          <div>
-            <label className="block text-gray-400 text-sm mb-2">Password *</label>
-            <input
-              type="password"
-              value={newUser.password}
-              onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter a secure password"
-              required
-            />
-            <p className="text-gray-500 text-xs mt-2">
-              Password must be at least 8 characters long
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-gray-400 text-sm mb-2">Role</label>
-            <select
-              value={newUser.user_type}
-              onChange={(e) => setNewUser(prev => ({ ...prev, user_type: e.target.value as 'user' | 'admin' }))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full"
             >
-              <option value="user" className="bg-gray-800">User</option>
-              <option value="admin" className="bg-gray-800">Admin</option>
-            </select>
-          </div>
-        </div>
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <UserPlus className="text-blue-600" size={20} />
+                  <h3 className="text-lg font-semibold text-gray-900">Create New User</h3>
+                </div>
+                <button
+                  onClick={() => setShowNewUserModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.first_name}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, first_name: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="John"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.last_name}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, last_name: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="Doe"
+                      required
+                    />
+                  </div>
+                </div>
 
-        <div className="flex gap-3 mt-8">
-          <GlowingButton
-            onClick={handleCreateUser}
-            className="flex-1 py-4"
-            disabled={!newUser.first_name || !newUser.last_name || !newUser.email || !newUser.password}
-          >
-            <Sparkle size={20} className="mr-2" />
-            Create User
-          </GlowingButton>
-          <button
-            onClick={() => setShowNewUserModal(false)}
-            className="px-6 py-4 bg-gray-800 text-gray-300 rounded-2xl font-semibold hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="user@example.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={newUser.phone_number}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, phone_number: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="+1 234 567 8900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="Enter a secure password"
+                    required
+                  />
+                  <p className="text-gray-500 text-xs mt-1">
+                    Password must be at least 8 characters long
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Role
+                  </label>
+                  <select
+                    value={newUser.user_type}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, user_type: e.target.value as 'customer' | 'admin' }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    <option value="customer">Customer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end p-6 border-t border-gray-200">
+                <button
+                  onClick={() => setShowNewUserModal(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateUser}
+                  disabled={!newUser.first_name || !newUser.last_name || !newUser.email || !newUser.password}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-70"
+                >
+                  Create User
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Edit User Modal */}
       <AnimatePresence>
@@ -997,88 +879,102 @@ const UserManagement: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
             onClick={() => setShowEditModal(null)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-8 border border-gray-700 shadow-2xl max-w-md w-full"
+              className="bg-white rounded-lg shadow-xl max-w-md w-full"
             >
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl">
-                    <Edit className="text-white" size={24} />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white">Edit User</h3>
+                  <Edit className="text-blue-600" size={20} />
+                  <h3 className="text-lg font-semibold text-gray-900">Edit User</h3>
                 </div>
                 <button
                   onClick={() => setShowEditModal(null)}
-                  className="p-2 hover:bg-gray-700 rounded-xl transition-colors"
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  <XCircle className="text-gray-400" size={24} />
+                  <XCircle size={20} />
                 </button>
               </div>
-
-              <div className="space-y-4">
+              
+              <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-gray-400 text-sm mb-2">First Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      First Name
+                    </label>
                     <input
                       type="text"
                       defaultValue={showEditModal.first_name}
                       onChange={(e) => setShowEditModal(prev => prev ? { ...prev, first_name: e.target.value } : null)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-400 text-sm mb-2">Last Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Last Name
+                    </label>
                     <input
                       type="text"
                       defaultValue={showEditModal.last_name}
                       onChange={(e) => setShowEditModal(prev => prev ? { ...prev, last_name: e.target.value } : null)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
                   <input
                     type="email"
                     defaultValue={showEditModal.email}
                     onChange={(e) => setShowEditModal(prev => prev ? { ...prev, email: e.target.value } : null)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">Phone Number</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
                   <input
                     type="tel"
                     defaultValue={showEditModal.phone_number || ''}
                     onChange={(e) => setShowEditModal(prev => prev ? { ...prev, phone_number: e.target.value } : null)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-gray-400 text-sm mb-2">Role</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Role
+                  </label>
                   <select
                     defaultValue={showEditModal.user_type}
-                    onChange={(e) => setShowEditModal(prev => prev ? { ...prev, user_type: e.target.value as 'user' | 'admin' } : null)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) => setShowEditModal(prev => prev ? { ...prev, user_type: e.target.value as 'customer' | 'admin' } : null)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   >
-                    <option value="user" className="bg-gray-800">User</option>
-                    <option value="admin" className="bg-gray-800">Admin</option>
+                    <option value="customer">Customer</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-8">
-                <GlowingButton
+              <div className="flex gap-3 justify-end p-6 border-t border-gray-200">
+                <button
+                  onClick={() => setShowEditModal(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
                   onClick={() => handleUpdateUser(showEditModal, {
                     first_name: showEditModal.first_name,
                     last_name: showEditModal.last_name,
@@ -1087,22 +983,9 @@ const UserManagement: React.FC = () => {
                     user_type: showEditModal.user_type
                   })}
                   disabled={isProcessing === showEditModal.user_id}
-                  className="flex-1 py-4"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-70"
                 >
-                  {isProcessing === showEditModal.user_id ? (
-                    <Loader className="animate-spin mx-auto" size={20} />
-                  ) : (
-                    <>
-                      <CheckCircle size={20} className="mr-2" />
-                      Update User
-                    </>
-                  )}
-                </GlowingButton>
-                <button
-                  onClick={() => setShowEditModal(null)}
-                  className="px-6 py-4 bg-gray-800 text-gray-300 rounded-2xl font-semibold hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
+                  {isProcessing === showEditModal.user_id ? 'Updating...' : 'Update User'}
                 </button>
               </div>
             </motion.div>
@@ -1117,43 +1000,38 @@ const UserManagement: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
             onClick={() => setShowDeleteModal(null)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-8 border border-gray-700 shadow-2xl max-w-md w-full"
+              className="bg-white rounded-lg shadow-xl max-w-md w-full"
             >
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Trash2 className="text-white" size={32} />
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="text-red-600" size={24} />
                 </div>
                 
-                <h3 className="text-2xl font-bold text-white mb-3">Delete User?</h3>
-                <p className="text-gray-400 mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Delete User?</h3>
+                <p className="text-gray-600 text-sm mb-6">
                   This action cannot be undone. The user will be permanently removed from the system.
                 </p>
 
-                <div className="flex gap-3">
-                  <GlowingButton
-                    onClick={() => handleDeleteUser(showDeleteModal)}
-                    variant="danger"
-                    className="flex-1 py-4"
-                  >
-                    {isProcessing === showDeleteModal ? (
-                      <Loader className="animate-spin mx-auto" size={20} />
-                    ) : (
-                      'Yes, Delete'
-                    )}
-                  </GlowingButton>
+                <div className="flex gap-3 justify-center">
                   <button
                     onClick={() => setShowDeleteModal(null)}
-                    className="px-6 py-4 bg-gray-800 text-gray-300 rounded-2xl font-semibold hover:bg-gray-700 transition-colors flex-1"
+                    className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm transition-colors"
                   >
                     Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(showDeleteModal)}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition-colors"
+                  >
+                    Yes, Delete
                   </button>
                 </div>
               </div>

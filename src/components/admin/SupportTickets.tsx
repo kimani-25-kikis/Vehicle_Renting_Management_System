@@ -651,7 +651,7 @@ const [assignedFilter, setAssignedFilter] = useState('all')
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-6">
       <div className="space-y-6">
         {/* Enhanced Header */}
-        <div className="bg-white rounded-2xl shadow-xl border border-blue-100 p-6">
+        <div className="bg-white rounded-2xl shadow-xl border border-blue-100 p-6 pt-15">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">

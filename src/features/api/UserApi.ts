@@ -29,14 +29,16 @@ export const userApi = createApi({
         }),
 
         // Update user details
-        updateUsersDetails: builder.mutation<{ message: string }, { user_id: number } & Partial<Omit<User, 'user_id' | 'user_type' | 'created_at'>>>({
-            query: ({ user_id, ...updateUser }) => ({
-                url: `users/${user_id}`,
-                method: 'PUT',
-                body: updateUser,
+        updateUsersDetails: builder.mutation<{ message: string }, { 
+            user_id: number 
+            } & Partial<Pick<User, 'first_name' | 'last_name' | 'email' | 'phone_number' | 'address' | 'user_type'>>>({
+                query: ({ user_id, ...updateUser }) => ({
+                    url: `users/${user_id}`,
+                    method: 'PUT',
+                    body: updateUser,
+                }),
+                invalidatesTags: ['Users'],
             }),
-            invalidatesTags: ['Users'],
-        }),
         // create user
                 createUser: builder.mutation<{ message: string; user: User }, Partial<User>>({
                 query: (newUser) => ({
@@ -47,14 +49,14 @@ export const userApi = createApi({
                 invalidatesTags: ['Users'],                 }),
 
         // Update user_type
-        updateUserTypeStatus: builder.mutation<{message: string}, {user_id: number, user_type: string}>({
-            query: ({user_id, ...updateUserType}) => ({
-                url: `user/user-status/${user_id}`,
-                method: 'PATCH',
-                body: updateUserType,
-            }),
-            invalidatesTags: ['Users']
-        }),
+                    updateUserTypeStatus: builder.mutation<{message: string}, {user_id: number, user_type: string}>({
+                query: ({user_id, ...updateUserType}) => ({
+                    url: `user-status/${user_id}`, 
+                    method: 'PATCH',
+                    body: updateUserType,
+                }),
+                invalidatesTags: ['Users']
+}),
 
         // DELETE USER MUTATION 
         deleteUser: builder.mutation<{ message: string }, number>({

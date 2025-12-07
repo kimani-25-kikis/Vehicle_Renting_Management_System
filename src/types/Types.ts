@@ -25,7 +25,7 @@ export interface User{
     address?: string
     updated_at: string;
     created_at:string;
-    user_type: 'user' | 'admin'
+    user_type: 'customer' | 'admin'
 }
 
 
