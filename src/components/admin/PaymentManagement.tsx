@@ -66,7 +66,9 @@ const PaymentManagement: React.FC = () => {
     failed_payments: 0,
     refunded_amount: 0,
     today_revenue: 0,
-    monthly_revenue: 0
+    monthly_revenue: 0,
+    total_payments:0,
+  refunded_payments:0
   }
 
   // Format currency
@@ -198,23 +200,34 @@ const PaymentManagement: React.FC = () => {
   }
 
   // Handle status update
-  const handleStatusUpdate = async () => {
-    if (!showStatusModal || !newStatus) return
+  // Update status update function
+const handleStatusUpdate = async () => {
+  if (!showStatusModal || !newStatus) return
 
-    try {
-      await updatePaymentStatus({
-        payment_id: showStatusModal.payment_id,
-        payment_status: newStatus as any
-      }).unwrap()
+  try {
+    await updatePaymentStatus({
+      payment_id: showStatusModal.payment_id,
+      payment_status: newStatus as any
+    }).unwrap()
 
-      toast.success(`Payment status updated to ${newStatus}`)
-      setShowStatusModal(null)
-      setNewStatus('')
-      refetchPayments()
-    } catch (error) {
-      toast.error('Failed to update payment status')
+    // Update booking status if payment is marked as Completed
+    if (newStatus === 'Completed') {
+      // You might want to also update the associated booking status
+      toast.info('Payment marked as completed. Booking status may need manual update.')
     }
+
+    toast.success(`Payment status updated to ${newStatus}`)
+    setShowStatusModal(null)
+    setNewStatus('')
+    refetchPayments()
+    refetchStats() // Also refetch stats to update totals
+  } catch (error: any) {
+    console.error('Status update error:', error)
+    toast.error('Failed to update payment status', {
+      description: error?.data?.error || 'Please try again'
+    })
   }
+}
 
   // Handle refund
   const handleRefund = async () => {
@@ -320,78 +333,101 @@ const PaymentManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Dashboard */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Total Revenue */}
-        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center">
-              <DollarSign className="text-white" size={24} />
-            </div>
-            <TrendingUp className="text-green-600" size={24} />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">
-            {formatCurrency(stats.total_revenue)}
-          </h3>
-          <p className="text-gray-600 text-sm">Total Revenue</p>
-          <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
-            <TrendingUp size={12} />
-            {formatCurrency(stats.today_revenue)} today
-          </div>
-        </div>
-
-        {/* Monthly Revenue */}
-        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <Calendar className="text-white" size={24} />
-            </div>
-            <BarChart3 className="text-blue-600" size={24} />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">
-            {formatCurrency(stats.monthly_revenue)}
-          </h3>
-          <p className="text-gray-600 text-sm">Monthly Revenue</p>
-        </div>
-
-        {/* Payment Status Breakdown */}
-        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <PieChart className="text-white" size={24} />
-            </div>
-            <Users className="text-purple-600" size={24} />
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Completed</span>
-              <span className="font-bold text-green-600">{stats.completed_payments}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Pending</span>
-              <span className="font-bold text-yellow-600">{stats.pending_payments}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Failed</span>
-              <span className="font-bold text-red-600">{stats.failed_payments}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Refunds */}
-        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-              <Receipt className="text-white" size={24} />
-            </div>
-            <Shield className="text-orange-600" size={24} />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">
-            {formatCurrency(stats.refunded_amount)}
-          </h3>
-          <p className="text-gray-600 text-sm">Total Refunds</p>
-        </div>
+{/* Stats Dashboard */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+  {/* Total Revenue - Only Completed Payments */}
+  <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+        <DollarSign className="text-white" size={24} />
       </div>
+      <TrendingUp className="text-green-600" size={24} />
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+      {formatCurrency(stats.total_revenue || 0)}
+    </h3>
+    <p className="text-gray-600 text-sm">Total Revenue</p>
+    <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
+      <CheckCircle size={12} />
+      {stats.completed_payments || 0} completed payments
+    </div>
+  </div>
+
+  {/* Monthly Revenue - Current Month Completed Payments */}
+  <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+        <Calendar className="text-white" size={24} />
+      </div>
+      <BarChart3 className="text-blue-600" size={24} />
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+      {formatCurrency(stats.monthly_revenue || 0)}
+    </h3>
+    <p className="text-gray-600 text-sm">This Month</p>
+    <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
+      <TrendingUp size={12} />
+      {formatCurrency(stats.today_revenue || 0)} today
+    </div>
+  </div>
+
+  {/* Payment Status Breakdown - Fixed */}
+  <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+        <PieChart className="text-white" size={24} />
+      </div>
+      <Users className="text-purple-600" size={24} />
+    </div>
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <span className="text-gray-600 text-sm">Completed</span>
+        </div>
+        <span className="font-bold text-green-600">{stats.completed_payments || 0}</span>
+      </div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+          <span className="text-gray-600 text-sm">Pending</span>
+        </div>
+        <span className="font-bold text-yellow-600">{stats.pending_payments || 0}</span>
+      </div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+          <span className="text-gray-600 text-sm">Failed</span>
+        </div>
+        <span className="font-bold text-red-600">{stats.failed_payments || 0}</span>
+      </div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+          <span className="text-gray-600 text-sm">Total</span>
+        </div>
+        <span className="font-bold text-gray-700">{stats.total_payments || 0}</span>
+      </div>
+    </div>
+  </div>
+
+  {/* Refunds - Fixed */}
+  <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
+        <Receipt className="text-white" size={24} />
+      </div>
+      <Shield className="text-orange-600" size={24} />
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+      {formatCurrency(stats.refunded_amount || 0)}
+    </h3>
+    <p className="text-gray-600 text-sm">Total Refunds</p>
+    <div className="mt-2 text-xs text-orange-600">
+      {stats.refunded_payments || 0} refunded payments
+    </div>
+  </div>
+</div>
 
       {/* Filters Bar */}
       <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6 mb-8">

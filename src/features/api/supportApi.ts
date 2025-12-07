@@ -155,12 +155,12 @@ export const supportApi = createApi({
     // ADMIN: ADD ADMIN NOTES
     addAdminNotes: builder.mutation<
       { success: boolean; ticket: SupportTicketResponse },
-      { ticketId: number; admin_notes: string }
+      { ticketId: number;data: {admin_notes: string }}
     >({
-      query: ({ ticketId, admin_notes }) => ({
+      query: ({ ticketId, data }) => ({
         url: `/tickets/admin/notes/${ticketId}`,
         method: 'PATCH',
-        body: { admin_notes },
+        body: data,
       }),
       invalidatesTags: ['SupportTicket'],
     }),
@@ -222,6 +222,19 @@ export const supportApi = createApi({
       providesTags: ['SupportTicket'],
     }),
 
+    // Add this endpoint to your supportApi.ts
+updateTicketPriority: builder.mutation<
+  { success: boolean; ticket: SupportTicketResponse },
+  { ticketId: number; data: { priority: string } }
+>({
+  query: ({ ticketId, data }) => ({
+    url: `/tickets/admin/priority/${ticketId}`,
+    method: 'PATCH',
+    body: data,
+  }),
+  invalidatesTags: ['SupportTicket'],
+}),
+
   }),
 })
 
@@ -236,4 +249,5 @@ export const {
   useAddTicketReplyMutation,
   useUploadAttachmentMutation,
   useGetTicketStatsQuery,
+  useUpdateTicketPriorityMutation,
 } = supportApi

@@ -2,6 +2,12 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { User } from '../../types/Types';
 import { apiDomain } from '../../apiDomain/apiDomain';
 
+export interface ChangePasswordRequest {
+  current_password: string
+  new_password: string
+}
+
+
 export const userApi = createApi({
     reducerPath: 'userApi',
     baseQuery: fetchBaseQuery({ baseUrl: apiDomain }),
@@ -59,6 +65,26 @@ export const userApi = createApi({
             invalidatesTags: ['Users'],
         }),
 
+        // changePassword: builder.mutation<{ message: string }, ChangePasswordRequest>({
+        //     query: (passwordData) => ({
+        //         url: '/users/change-password',
+        //         method: 'PUT',
+        //         body: passwordData,
+        //     }),
+        // }),
+
+        changePassword: builder.mutation<{ 
+          success: boolean; 
+          message: string 
+        }, ChangePasswordRequest>({
+            query: (passwordData) => ({
+                url: '/users/change-password',
+                method: 'PUT',
+                body: passwordData,
+            }),
+        }),
+        
+
     }),
 })
 
@@ -70,4 +96,6 @@ export const {
     useUpdateUserTypeStatusMutation,
     useDeleteUserMutation, 
     useCreateUserMutation,
+    useChangePasswordMutation,
+    
 } = userApi
