@@ -24,6 +24,10 @@ import ReviewManagement from './components/admin/ReviewManagement'
 import SupportTickets from './components/admin/SupportTickets'
 import AdminSettings from './components/admin/AdminSettings'
 
+import AdminRoute from './components/auth/AdminRoute'
+import UserRoute from './components/auth/UserRoute'
+import PublicRoute from './components/auth/PublicRoute'
+
 // Notifications
 import { Toaster } from 'sonner'
 
@@ -38,11 +42,11 @@ function App() {
     },
     {
       path: '/register',
-      element: <Register />
+      element: <PublicRoute><Register /></PublicRoute>
     },
     {
       path: '/login',
-      element: <Login />
+      element: <PublicRoute><Login /></PublicRoute>
     },
     {
       path: '/vehicles',
@@ -62,11 +66,11 @@ function App() {
     },
     {
       path: '/my-bookings',
-      element: <MyBookings />
+      element: <UserRoute><MyBookings /></UserRoute>
     },
     {
       path: '/dashboard',
-      element: <UserDashboard />
+      element: <UserRoute><UserDashboard /></UserRoute>
     },
 
     // ---------------------
@@ -75,57 +79,83 @@ function App() {
     {
       path: '/admin',
       element: (
-        <AdminDashboardLayout>
+        <AdminRoute>
+          <AdminDashboardLayout>
           <AdminOverview />
         </AdminDashboardLayout>
+        </AdminRoute>
+        
       )
     },
     {
       path: '/admin/users',
       element: (
-        <AdminDashboardLayout>
+
+         <AdminRoute>
+          <AdminDashboardLayout>
           <UserManagement />
         </AdminDashboardLayout>
+         </AdminRoute>
+        
       )
     },
     {
       path: '/admin/vehicles',
       element: (
-        <AdminDashboardLayout>
+
+        <AdminRoute>
+          <AdminDashboardLayout>
           <VehicleManagement />
         </AdminDashboardLayout>
+        </AdminRoute>
+        
       )
     },
     {
       path: '/admin/bookings',
       element: (
-        <AdminDashboardLayout>
+
+        <AdminRoute>
+          <AdminDashboardLayout>
           <BookingManagement />
         </AdminDashboardLayout>
+        </AdminRoute>
+        
       )
     },
     {
       path: '/admin/payments',
       element: (
-        <AdminDashboardLayout>
+        <AdminRoute>
+          <AdminDashboardLayout>
           <PaymentManagement />
         </AdminDashboardLayout>
+        </AdminRoute>
+        
       )
     },
     {
       path: '/admin/reviews',
       element: (
-        <AdminDashboardLayout>
+
+        <AdminRoute>
+          <AdminDashboardLayout>
           <ReviewManagement />
         </AdminDashboardLayout>
+        </AdminRoute>
+        
       )
     },
     {
       path: '/admin/support',
       element: (
-        <AdminDashboardLayout>
+
+        <AdminRoute>
+          <AdminDashboardLayout>
           <SupportTickets />
         </AdminDashboardLayout>
+        </AdminRoute>
+        
       )
     },
     {
