@@ -27,6 +27,7 @@ import AdminSettings from './components/admin/AdminSettings'
 import AdminRoute from './components/auth/AdminRoute'
 import UserRoute from './components/auth/UserRoute'
 import PublicRoute from './components/auth/PublicRoute'
+import PaymentCallback from './UserDashboard/paymentCallBack'
 
 // Notifications
 import { Toaster } from 'sonner'
@@ -72,6 +73,10 @@ function App() {
       path: '/dashboard',
       element: <UserRoute><UserDashboard /></UserRoute>
     },
+    {
+      path:'/payment-callback',
+      element:<PaymentCallback />
+    }, 
 
     // ---------------------
     // ADMIN ROUTES

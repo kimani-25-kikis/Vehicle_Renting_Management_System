@@ -168,17 +168,17 @@ getMySpendingStats: builder.query<{ success: boolean; stats: any }, void>({
 
     // UPDATE PAYMENT STATUS (Admin only)
     updatePaymentStatus: builder.mutation<{ success: boolean; message: string; data: Payment }, {
-  payment_id: number
-  payment_status: 'Pending' | 'Completed' | 'Failed' | 'Refunded'
-  admin_notes?: string
-}>({
-  query: ({ payment_id, payment_status, admin_notes }) => ({
-    url: `/payments/${payment_id}/status`, // Correct URL
-    method: 'PUT',
-    body: { payment_status, admin_notes },
-  }),
-  invalidatesTags: ['Payments', 'PaymentStats', 'BookingPayment'],
-}),
+      payment_id: number
+      payment_status: 'Pending' | 'Completed' | 'Failed' | 'Refunded'
+    }>({
+      query: ({ payment_id, payment_status }) => ({
+        url: `/payments/${payment_id}/status`,
+        method: 'PUT',
+        body: { payment_status },
+      }),
+      invalidatesTags: ['Payments', 'PaymentStats', 'BookingPayment'],
+    }),
+
     // EXPORT PAYMENTS (Admin only)
     exportPayments: builder.mutation<Blob, PaymentFilters & { format: 'csv' | 'excel' }>({
       query: (params) => ({

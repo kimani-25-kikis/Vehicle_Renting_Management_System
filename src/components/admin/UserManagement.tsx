@@ -229,14 +229,17 @@ const UserManagement: React.FC = () => {
     
     try {
       // FIX: Use updateUserDetails instead of updateUserType
-      await updateUserDetails({
+      const response = await updateUserDetails({
         user_id: userId,
         user_type: newRole
       }).unwrap()
+      console.log("🚀 ~ handleUpdateRole ~ response:", response)
+
       
-      toast.success(`User role updated to ${newRole === 'admin' ? 'Administrator' : 'Customer'}!`, {
-        icon: <Shield className="text-orange-500" />,
-      })
+      
+      // toast.success(`User rol/e updated to ${newRole === 'admin' ? 'Administrator' : 'Customer'}!`, {
+      //   icon: <Shield className="text-orange-500" />,
+      // })
     } catch (error: any) {
       console.error('Role update error:', error)
       toast.error('Failed to update user role', {

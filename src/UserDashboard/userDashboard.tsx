@@ -90,22 +90,6 @@ interface SpendingStats {
   month?: string
 }
 
-// Define payment interface
-// interface UserPayment {
-//   payment_id: number
-//   booking_id: number
-//   amount: number
-//   payment_status: string
-//   payment_method: string
-//   transaction_id?: string
-//   created_at: string
-//   booking_status: string
-//   pickup_date: string
-//   return_date: string
-//   manufacturer: string
-//   model: string
-//   year: string
-// }
 
 interface SpendingStats {
   total_spent: number
@@ -122,12 +106,17 @@ interface SpendingStats {
 
 
 // Profile Tab Component
-const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
+  const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
   const [updateUser, { isLoading: isUpdating }] = useUpdateUsersDetailsMutation()
   const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation() 
   const [activeSection, setActiveSection] = useState<'personal' | 'security'>('personal')
   const [toastId, setToastId] = useState<string | number | null>(null)
   const { token } = useSelector((state: RootState) => state.authSlice)
+
+  const [showMpesaPhoneModal, setShowMpesaPhoneModal] = useState(false);
+  const [selectedBookingForMpesa, setSelectedBookingForMpesa] = useState<BookingData | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isProcessingMpesa, setIsProcessingMpesa] = useState(false);
 
   
 
@@ -183,15 +172,21 @@ useEffect(() => {
 }, [searchParams, setSearchParams])
 
 // Update your handlePayment function to redirect with success params
+
 const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
   try {
-    await stripePromise;
-    const header = { 'Content-Type': 'application/json' };
-    
     if (method === 'card') {
-      const checkoutResponse = await axios.post(`${apiDomain}/payments/create-intent`, JSON.stringify(booking), {
-        headers: { ...header, Authorization: `${token}` },
-      });
+      // Existing Stripe code
+      await stripePromise;
+      const header = { 'Content-Type': 'application/json' };
+      
+      const checkoutResponse = await axios.post(
+        `${apiDomain}/payments/create-intent`, 
+        JSON.stringify(booking), 
+        {
+          headers: { ...header, Authorization: `${token}` },
+        }
+      );
 
       const { session } = checkoutResponse.data;
       
@@ -200,21 +195,70 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
         localStorage.setItem('pendingPayment', JSON.stringify({
           bookingId: booking.booking_id,
           amount: booking.total_amount
-        }))
+        }));
         
         window.location.href = session.url;
       } else {
         toast.error('Invalid checkout response');
       }
+    } else if (method === 'mpesa') {
+      // M-Pesa payment via Paystack Hosted Checkout
+      const toastId = toast.loading('Initializing M-Pesa payment...');
+      
+      try {
+        const response = await axios.post(
+          `${apiDomain}/payments/mpesa/initialize`,
+          {
+            booking_id: booking.booking_id,
+            amount: booking.total_amount
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        toast.dismiss(toastId);
+        
+        if (response.data.success) {
+          const paymentData = response.data.data;
+          
+          console.log('✅ M-Pesa payment initialized:', paymentData);
+          
+          toast.success('Redirecting to Paystack...');
+          
+          // Store payment info in localStorage for callback
+          localStorage.setItem('pendingMpesaPayment', JSON.stringify({
+            bookingId: booking.booking_id,
+            paymentId: paymentData.payment_id,
+            reference: paymentData.reference,
+            amount: booking.total_amount
+          }));
+          
+          // Redirect to Paystack's hosted checkout page
+          setTimeout(() => {
+            window.location.href = paymentData.checkout_url;
+          }, 1500);
+          
+        } else {
+          toast.error('Failed to initialize M-Pesa payment', {
+            description: response.data.error || 'Please try again'
+          });
+        }
+      } catch (error: any) {
+        toast.dismiss(toastId);
+        throw error;
+      }
     }
-    // ... rest of your existing code
   } catch (error: any) {
     console.error('Payment error:', error);
     toast.error('Payment failed', {
       description: error?.response?.data?.message || 'Please try again later.',
     });
   }
-}
+};
 
 // Add the modal at the end of your UserDashboard return statement
 {/* Payment Success Modal */}
@@ -2019,6 +2063,8 @@ const SupportTab: React.FC<{ bookings: BookingData[] }> = ({ bookings }) => {
   )
 }
 
+
+
 const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
   const { data: vehicle, isLoading } = useGetVehicleByIdQuery(vehicleId)
   if (isLoading) return <span className="text-gray-500">Loading...</span>
@@ -2046,6 +2092,11 @@ const UserDashboard: React.FC = () => {
   const navigate = useNavigate()
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successBookingId, setSuccessBookingId] = useState<number | null>(null)
+
+  const [showMpesaPhoneModal, setShowMpesaPhoneModal] = useState(false);
+  const [selectedBookingForMpesa, setSelectedBookingForMpesa] = useState<BookingData | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isProcessingMpesa, setIsProcessingMpesa] = useState(false);
 
   const { token, user } = useSelector((state: RootState) => state.authSlice)
   useEffect(() => {
@@ -2118,6 +2169,175 @@ const UserDashboard: React.FC = () => {
       </div>
     )
   }
+
+  const MpesaPhoneModal = ({ token }: { token: string }) => {
+    if (!showMpesaPhoneModal || !selectedBookingForMpesa) return null;
+
+    const handleSubmit = async () => {
+      if (!phoneNumber.trim()) {
+        toast.error('Please enter your M-Pesa phone number');
+        return;
+      }
+
+      // Validate phone number format
+      const phoneRegex = /^(07|2547)\d{8}$/;
+      const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+      
+      if (!phoneRegex.test(cleanPhone)) {
+        toast.error('Invalid phone number format. Use: 07XXXXXXXX or 2547XXXXXXXX');
+        return;
+      }
+
+      // Check if token exists
+      if (!token) {
+        toast.error('Authentication required. Please log in again.');
+        return;
+      }
+
+      setIsProcessingMpesa(true);
+      
+      try {
+        const toastId = toast.loading('Initializing M-Pesa payment...');
+        
+        const response = await axios.post(
+          `${apiDomain}/payments/mpesa/initialize`,
+          {
+            booking_id: selectedBookingForMpesa.booking_id,
+            amount: selectedBookingForMpesa.total_amount,
+            phone_number: cleanPhone
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`  // Use Bearer token
+            }
+          }
+        );
+
+        toast.dismiss(toastId);
+        
+        if (response.data.success) {
+          const paymentData = response.data.data;
+          
+          console.log('✅ M-Pesa payment initialized:', paymentData);
+          
+          if (paymentData.requires_otp) {
+            toast.info(paymentData.display_text || 'Please check your phone for OTP');
+          } else {
+            toast.success(paymentData.display_text || 'Check your phone for STK Push');
+          }
+          
+          // Store payment info in localStorage
+          localStorage.setItem('pendingMpesaPayment', JSON.stringify({
+            bookingId: selectedBookingForMpesa.booking_id,
+            paymentId: paymentData.payment_id,
+            reference: paymentData.reference,
+            amount: selectedBookingForMpesa.total_amount
+          }));
+          
+          // Close modal
+          setShowMpesaPhoneModal(false);
+          setSelectedBookingForMpesa(null);
+          setPhoneNumber('');
+          
+        } else {
+          toast.error('Failed to initialize M-Pesa payment', {
+            description: response.data.error || 'Please try again'
+          });
+        }
+      } catch (error: any) {
+        console.error('M-Pesa error:', error);
+        
+        let errorMessage = 'Please try again later.';
+        if (error.response?.data?.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response?.data?.details) {
+          errorMessage = error.response.data.details;
+        }
+        
+        toast.error('M-Pesa payment failed', {
+          description: errorMessage
+        });
+      } finally {
+        setIsProcessingMpesa(false);
+      }
+    };
+
+    const handleClose = () => {
+      setShowMpesaPhoneModal(false);
+      setSelectedBookingForMpesa(null);
+      setPhoneNumber('');
+      setIsProcessingMpesa(false);
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
+        
+        <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <Smartphone className="text-green-600" size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Pay with M-Pesa</h2>
+                <p className="text-sm text-gray-600">Booking #{selectedBookingForMpesa.booking_id}</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Enter your M-Pesa phone number
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="07XXXXXXXX or 2547XXXXXXXX"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                autoFocus
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                You will receive an STK Push on this number
+              </p>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="text-yellow-600" size={16} />
+                <span className="font-semibold text-yellow-800">Important:</span>
+              </div>
+              <ul className="text-sm text-yellow-700 space-y-1">
+                <li>• Ensure your phone is ON and has network signal</li>
+                <li>• You have sufficient M-Pesa balance</li>
+                <li>• Transaction limit is KES 150,000 per day</li>
+                <li>• Enter your M-Pesa PIN when prompted</li>
+                <li>• Keep your phone nearby - STK Push expires in 2 minutes</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleClose}
+                disabled={isProcessingMpesa}
+                className="flex-1 px-6 py-3 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isProcessingMpesa || !phoneNumber.trim()}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessingMpesa ? 'Processing...' : 'Continue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 // In UserDashboard.tsx - After payment, update the booking card
 useEffect(() => {
   const searchParams = new URLSearchParams(location.search)
@@ -2163,45 +2383,37 @@ useEffect(() => {
 
   const handleCancelClick = (id: number) => setShowCancelModal(id)
 
-  const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
-    try {
+const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
+  try {
+    if (method === 'card') {
+      // Existing Stripe code
       await stripePromise;
       const header = { 'Content-Type': 'application/json' };
       
-      if (method === 'card') {
-        const checkoutResponse = await axios.post(`${apiDomain}/payments/create-intent`, JSON.stringify(booking), {
-          headers: { ...header, Authorization: `${token}` },
-        });
-
-        const { session } = checkoutResponse.data;
-        
-        if (session?.url) {
-          window.location.href = session.url;
-        } else {
-          toast.error('Invalid checkout response');
-        }
-      } else {
-        // M-Pesa payment logic
-        const mpesaResponse = await axios.post(`${apiDomain}/payments/mpesa-payment`, {
-          booking_id: booking.booking_id,
-          amount: booking.total_amount,
-        }, {
-          headers: { ...header, Authorization: `${token}` },
-        });
-
-        if (mpesaResponse.data.success) {
-          toast.success('M-Pesa payment initiated! Check your phone.');
-        } else {
-          toast.error('M-Pesa payment failed');
-        }
-      }
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      toast.error('Payment failed', {
-        description: error?.response?.data?.message || 'Please try again later.',
+      const checkoutResponse = await axios.post(`${apiDomain}/payments/create-intent`, JSON.stringify(booking), {
+        headers: { ...header, Authorization: `${token}` },
       });
+
+      const { session } = checkoutResponse.data;
+      
+      if (session?.url) {
+        window.location.href = session.url;
+      } else {
+        toast.error('Invalid checkout response');
+      }
+    } else if (method === 'mpesa') {
+      // Show M-Pesa phone modal
+      setSelectedBookingForMpesa(booking);
+      setShowMpesaPhoneModal(true);
+      setPhoneNumber('');
     }
+  } catch (error: any) {
+    console.error('Payment error:', error);
+    toast.error('Payment failed', {
+      description: error?.response?.data?.message || 'Please try again later.',
+    });
   }
+};
 
   const handleDamageReport = async () => {
     if (!damageReport.description.trim()) {
@@ -2591,6 +2803,8 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+        <MpesaPhoneModal token={token || ''} />
 
       {/* Damage Report Modal */}
       {showDamageModal && (

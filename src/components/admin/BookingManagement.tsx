@@ -868,7 +868,7 @@ const BookingManagement: React.FC = () => {
               </div>
               
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                   <p className="text-gray-500 text-sm">Total</p>
                   <h3 className="text-2xl font-bold text-gray-900">{bookingStats.total}</h3>
@@ -893,10 +893,12 @@ const BookingManagement: React.FC = () => {
                   <p className="text-red-600 text-sm">Cancelled</p>
                   <h3 className="text-2xl font-bold text-red-700">{bookingStats.cancelled}</h3>
                 </div>
-                <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-2xl border border-purple-200">
-                  <p className="text-purple-600 text-sm">Revenue</p>
-                  <h3 className="text-2xl font-bold text-purple-700">${bookingStats.revenue.toFixed(0)}</h3>
-                </div>
+                <div className="md:col-span-2 bg-gradient-to-r from-purple-50 to-purple-100 p-5 rounded-2xl border border-purple-200">
+  <p className="text-purple-600 text-sm font-medium mb-1">Revenue</p>
+  <h3 className="text-2xl font-bold text-purple-700">
+    ${bookingStats.revenue.toFixed(0)}
+  </h3>
+</div>
               </div>
             </div>
             
@@ -1203,7 +1205,7 @@ const BookingManagement: React.FC = () => {
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          className="absolute right-0 top-12 bg-white border border-gray-200 rounded-2xl shadow-xl z-10 min-w-[250px] overflow-hidden"
+                          className="absolute right-0 top-12 bg-white border border-gray-200 rounded-2xl shadow-lg z-50 min-w-[250px] overflow-hidden backdrop-blur-sm bg-white/95"
                         >
                           {!booking.verified_by_admin ? (
                             <>
