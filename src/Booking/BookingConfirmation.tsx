@@ -5,17 +5,18 @@ import { useGetVehicleByIdQuery } from '../features/api/vehiclesApi'
 import {
   CheckCircle, Download, Printer, Share2, Home,
   Car, Shield, CreditCard, Phone, Mail, ArrowLeft,
-  FileText, Settings, Calendar, Clock
+  FileText, Settings, Calendar, Clock,
+  Star, AlertTriangle, CreditCard as CardIcon,
+  MapPin, UserCheck, Package, PhoneCall,
+  Bell, Wrench, PhoneOff, ChevronRight
 } from 'lucide-react'
 
 const BookingConfirmation: React.FC = () => {
   const { booking_id } = useParams<{ booking_id: string }>()
   const navigate = useNavigate()
 
-  
   const { data: booking, isLoading, error } = useGetBookingByIdQuery(Number(booking_id))
   const vehicle_id = booking?.booking.vehicle_id || 0
-  console.log("🚀 ~ BookingConfirmation ~ vehicle:", vehicle_id)
   const { data: vehicle } = useGetVehicleByIdQuery(vehicle_id, {
     skip: !vehicle_id
   })
@@ -39,7 +40,6 @@ const BookingConfirmation: React.FC = () => {
     }
   }
 
-  // DOWNLOAD PDF — Opens "Save as PDF" (User chooses to save)
   const downloadPDF = () => {
     if (!booking || !vehicle) return
 
@@ -128,13 +128,9 @@ const BookingConfirmation: React.FC = () => {
 
     win.document.close()
     win.focus()
-
-    // This opens the print dialog → user clicks "Save as PDF"
-    // This is intentional and the standard way to let users save PDFs
     setTimeout(() => win.print(), 1000)
   }
 
-  // CLEAN PRINT — No background, perfect layout
   const handlePrint = () => {
     const printWin = window.open('', '_blank')
     if (!printWin) return
@@ -202,6 +198,48 @@ const BookingConfirmation: React.FC = () => {
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const formatTime = (d: string) => new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
+  const getDynamicContent = () => {
+    const status = booking?.booking.booking_status.toLowerCase() || ''
+    
+    return {
+      // Success banner content
+      successTitle: status === 'pending' ? 'Booking Reserved!' 
+                 : status === 'confirmed' ? 'Booking Confirmed!' 
+                 : status === 'active' ? 'Enjoy Your Trip!'
+                 : status === 'completed' ? 'Trip Completed!'
+                 : 'Booking Updated!',
+      
+      successMessage: status === 'pending' ? `Your ${vehicle?.specification.manufacturer} ${vehicle?.specification.model} is waiting for payment`
+                    : status === 'confirmed' ? `Your ${vehicle?.specification.manufacturer} ${vehicle?.specification.model} is ready for pickup!`
+                    : status === 'active' ? `You're currently driving your ${vehicle?.specification.manufacturer} ${vehicle?.specification.model}`
+                    : status === 'completed' ? `Thank you for choosing ${vehicle?.specification.manufacturer} ${vehicle?.specification.model}`
+                    : `Your booking is ${booking?.booking.booking_status}`,
+      
+      // Status-specific icon
+      successIcon: status === 'pending' ? Clock 
+                 : status === 'confirmed' ? CheckCircle
+                 : status === 'active' ? Car
+                 : status === 'completed' ? Star
+                 : CheckCircle,
+      
+      // Main action button
+      mainAction: status === 'pending' ? 'Complete Payment Now'
+                : status === 'confirmed' ? 'View Pickup Instructions'
+                : status === 'active' ? 'Extend Rental'
+                : status === 'completed' ? 'Write Review'
+                : 'View Details',
+      
+      // Main action color
+      mainActionColor: status === 'pending' ? 'from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600'
+                     : status === 'confirmed' ? 'from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
+                     : status === 'active' ? 'from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                     : status === 'completed' ? 'from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                     : 'from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900',
+    }
+  }
+
+  const dynamicContent = getDynamicContent()
+
   if (isLoading) return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
       <div className="text-center">
@@ -246,7 +284,7 @@ const BookingConfirmation: React.FC = () => {
                 </button>
                 <div>
                   <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    Booking Confirmed
+                    {dynamicContent.successTitle}
                   </h1>
                   <p className="text-gray-600">{vehicle.specification.manufacturer} {vehicle.specification.model} • {vehicle.specification.year}</p>
                 </div>
@@ -267,11 +305,11 @@ const BookingConfirmation: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-6">
                     <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center border border-white/30">
-                      <CheckCircle className="text-white" size={40} />
+                      <dynamicContent.successIcon className="text-white" size={40} />
                     </div>
                     <div>
-                      <h1 className="text-4xl font-bold mb-2">Booking Confirmed!</h1>
-                      <p className="text-blue-100 text-lg">Your {vehicle.specification.manufacturer} {vehicle.specification.model} is reserved</p>
+                      <h1 className="text-4xl font-bold mb-2">{dynamicContent.successTitle}</h1>
+                      <p className="text-blue-100 text-lg">{dynamicContent.successMessage}</p>
                     </div>
                   </div>
                   <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-2xl border border-white/30">
@@ -281,6 +319,10 @@ const BookingConfirmation: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                <button className={`mt-6 bg-gradient-to-r ${dynamicContent.mainActionColor} text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-3 hover:shadow-xl hover:scale-105 transition-all`}>
+                  {dynamicContent.mainAction}
+                  <ChevronRight size={20} />
+                </button>
               </div>
 
               {/* Vehicle & Protection Grid */}
@@ -354,36 +396,166 @@ const BookingConfirmation: React.FC = () => {
                 </div>
               </div>
 
-              {/* What's Next */}
+              {/* Dynamic Next Steps */}
               <div className="bg-white/90 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                  <Clock className="text-blue-600" /> What's Next?
+                  <Clock className="text-blue-600" /> Next Steps
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {[
-                    { step: 1, title: 'Prepare Documents', desc: 'Bring your license and confirmation', color: 'blue' },
-                    { step: 2, title: 'Vehicle Inspection', desc: '15 mins early for inspection', color: 'orange' },
-                    { step: 3, title: 'Enjoy Your Ride', desc: 'Drive safely and contact support', color: 'green' }
-                  ].map((item) => (
-                    <div key={item.step} className={`p-6 rounded-2xl border bg-${item.color}-50/50 border-${item.color}-100 text-center hover:scale-105 transition-transform`}>
-                      <div className={`w-12 h-12 bg-${item.color}-500 rounded-full flex items-center justify-center mx-auto mb-4`}>
-                        <span className="text-white font-bold text-lg">{item.step}</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
-                      <p className="text-gray-600 text-sm">{item.desc}</p>
-                    </div>
-                  ))}
-                </div>
+                
+                {(() => {
+                  const status = booking.booking.booking_status.toLowerCase()
+                  
+                  switch(status) {
+                    case 'pending':
+                    case 'pending payment':
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {[
+                            { 
+                              step: 1, 
+                              title: 'Complete Payment', 
+                              desc: 'Secure your booking with payment', 
+                              icon: '💰', 
+                              color: 'yellow' 
+                            },
+                            { 
+                              step: 2, 
+                              title: 'Document Upload', 
+                              desc: 'Submit your driver\'s license', 
+                              icon: '📄', 
+                              color: 'blue' 
+                            },
+                            { 
+                              step: 3, 
+                              title: 'Pickup Confirmation', 
+                              desc: 'Receive pickup time & location', 
+                              icon: '📍', 
+                              color: 'green' 
+                            }
+                          ].map((item) => (
+                            <div key={item.step} className="p-6 rounded-2xl border bg-white hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                              <div className="text-3xl mb-4">{item.icon}</div>
+                              <div className={`w-8 h-8 bg-${item.color}-100 text-${item.color}-600 rounded-full flex items-center justify-center text-sm font-bold mb-3`}>
+                                {item.step}
+                              </div>
+                              <h3 className="font-bold text-gray-900 mb-2">{item.title}</h3>
+                              <p className="text-gray-600 text-sm">{item.desc}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                      
+                    case 'confirmed':
+                    case 'approved':
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {[
+                            { 
+                              step: 1, 
+                              title: 'Prepare Documents', 
+                              desc: 'Bring ID, license & this confirmation', 
+                              icon: '📋', 
+                              color: 'blue' 
+                            },
+                            { 
+                              step: 2, 
+                              title: 'Vehicle Inspection', 
+                              desc: 'Arrive 15 mins early for inspection', 
+                              icon: '🔍', 
+                              color: 'orange' 
+                            },
+                            { 
+                              step: 3, 
+                              title: 'Enjoy Your Ride', 
+                              desc: 'Drive safely & contact 24/7 support', 
+                              icon: '🚗', 
+                              color: 'green' 
+                            }
+                          ].map((item) => (
+                            <div key={item.step} className="p-6 rounded-2xl border bg-white hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                              <div className="text-3xl mb-4">{item.icon}</div>
+                              <div className={`w-8 h-8 bg-${item.color}-100 text-${item.color}-600 rounded-full flex items-center justify-center text-sm font-bold mb-3`}>
+                                {item.step}
+                              </div>
+                              <h3 className="font-bold text-gray-900 mb-2">{item.title}</h3>
+                              <p className="text-gray-600 text-sm">{item.desc}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                      
+                    case 'active':
+                    case 'in progress':
+                      return (
+                        <div className="space-y-6">
+                          <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100">
+                            <h3 className="font-bold text-blue-900 mb-3 text-lg">Currently On Trip</h3>
+                            <p className="text-blue-700 mb-4">You're currently enjoying your {vehicle.specification.manufacturer} {vehicle.specification.model}!</p>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-blue-700">
+                                <Calendar size={16} />
+                                <span>Return by: <strong>{formatDate(booking.booking.return_date)}</strong></span>
+                              </div>
+                              <div className="flex items-center gap-2 text-blue-700">
+                                <Clock size={16} />
+                                <span>Time: <strong>{formatTime(booking.booking.return_date)}</strong></span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <button className="p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors">
+                              <div className="text-xl mb-2">⏰</div>
+                              <span className="font-semibold text-blue-700">Extend Rental</span>
+                            </button>
+                            <button className="p-4 bg-white border border-green-200 rounded-xl hover:bg-green-50 transition-colors">
+                              <div className="text-xl mb-2">🆘</div>
+                              <span className="font-semibold text-green-700">Need Help?</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                      
+                    case 'completed':
+                      return (
+                        <div className="space-y-6">
+                          <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100">
+                            <h3 className="font-bold text-green-900 mb-3 text-lg">Trip Completed Successfully! 🎉</h3>
+                            <p className="text-green-700">We hope you enjoyed your ride in the {vehicle.specification.manufacturer} {vehicle.specification.model}.</p>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <button className="p-4 bg-white border border-purple-200 rounded-xl hover:bg-purple-50 transition-colors">
+                              <div className="text-xl mb-2">⭐</div>
+                              <span className="font-semibold text-purple-700">Rate Your Experience</span>
+                            </button>
+                            <button className="p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors">
+                              <div className="text-xl mb-2">📁</div>
+                              <span className="font-semibold text-blue-700">Download Receipt</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                      
+                    default:
+                      return (
+                        <div className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                          <p className="text-gray-700">Your booking is currently in <strong>{booking.booking.booking_status}</strong> status.</p>
+                        </div>
+                      )
+                  }
+                })()}
               </div>
             </div>
 
             {/* Right Sidebar */}
             <div className="xl:col-span-4 space-y-8">
-              {/* Payment Summary */}
+              {/* Payment & Status Summary */}
               <div className="bg-white/90 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
                 <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                  <CreditCard className="text-blue-600" /> Payment Summary
+                  <CreditCard className="text-blue-600" /> Payment & Status
                 </h3>
+                
                 <div className="space-y-4">
                   <div className="flex justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600">Vehicle Rental</span>
@@ -402,26 +574,165 @@ const BookingConfirmation: React.FC = () => {
                     <span className="text-2xl font-bold text-blue-600">${booking.booking.total_amount}</span>
                   </div>
                 </div>
-                <div className="mt-6 p-4 bg-green-50 rounded-xl border border-green-200 text-center">
-                  <CheckCircle className="inline-block text-green-600 mr-2" size={20} />
-                  <span className="text-green-800 font-semibold">Payment Completed</span>
-                </div>
+                
+                {/* Dynamic Status Message */}
+                {(() => {
+                  const status = booking.booking.booking_status.toLowerCase()
+                  
+                  switch(status) {
+                    case 'pending':
+                    case 'pending payment':
+                      return (
+                        <div className="mt-6 p-5 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Clock className="text-yellow-600" size={24} />
+                            <h4 className="font-bold text-yellow-800 text-lg">Payment Required</h4>
+                          </div>
+                          <p className="text-yellow-700 mb-4">
+                            Your booking is reserved but requires payment to activate. Complete payment to secure your vehicle.
+                          </p>
+                          <Link 
+                            to="/dashboard"
+                            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-3 rounded-xl font-bold text-center transition-all hover:shadow-lg block"
+                          >
+                            Complete Payment Now
+                          </Link>
+                        </div>
+                      )
+                      
+                    case 'confirmed':
+                    case 'approved':
+                      return (
+                        <div className="mt-6 p-5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <CheckCircle className="text-green-600" size={24} />
+                            <h4 className="font-bold text-green-800 text-lg">Ready for Pickup!</h4>
+                          </div>
+                          <p className="text-green-700 mb-4">
+                            Payment completed! Your {vehicle.specification.manufacturer} {vehicle.specification.model} is ready for you.
+                          </p>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-green-700">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span>Pickup: {formatTime(booking.booking.pickup_date)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-green-700">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span>Location: {booking.booking.pickup_location}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                      
+                    case 'active':
+                    case 'in progress':
+                      return (
+                        <div className="mt-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Car className="text-blue-600" size={24} />
+                            <h4 className="font-bold text-blue-800 text-lg">Enjoy Your Ride!</h4>
+                          </div>
+                          <p className="text-blue-700 mb-4">
+                            You're currently enjoying your {vehicle.specification.manufacturer} {vehicle.specification.model}. Drive safely!
+                          </p>
+                          <div className="flex items-center gap-2 text-blue-700 mb-3">
+                            <Clock size={16} />
+                            <span>Return by: {formatTime(booking.booking.return_date)}</span>
+                          </div>
+                          <button className="w-full border border-blue-600 text-blue-700 hover:bg-blue-50 py-2 rounded-lg font-semibold transition-colors">
+                            Extend Return Time
+                          </button>
+                        </div>
+                      )
+                      
+                    case 'completed':
+                    return (
+                      <div className="mt-6 p-5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                        <div className="flex items-center gap-3 mb-3">
+                          <Star className="text-purple-600" size={24} />
+                          <h4 className="font-bold text-purple-800 text-lg">Trip Completed!</h4>
+                        </div>
+                        <p className="text-purple-700 mb-4">
+                          We hope you enjoyed your ride! Your rental has been successfully completed.
+                        </p>
+                        <button 
+                          onClick={() => navigate('/dashboard?tab=reviews')}
+                          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-3 rounded-xl font-bold transition-all hover:shadow-lg"
+                        >
+                          Rate Your Experience
+                        </button>
+                      </div>
+                    )
+                                        
+                    case 'cancelled':
+                      return (
+                        <div className="mt-6 p-5 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Clock className="text-gray-600" size={24} />
+                            <h4 className="font-bold text-gray-800 text-lg">Booking Cancelled</h4>
+                          </div>
+                          <p className="text-gray-700 mb-4">
+                            This booking has been cancelled. Any applicable refunds will be processed within 5-7 business days.
+                          </p>
+                        </div>
+                      )
+                      
+                    default:
+                      return (
+                        <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                          <span className="text-gray-700">Status: {booking.booking.booking_status}</span>
+                        </div>
+                      )
+                  }
+                })()}
               </div>
 
-              {/* Quick Actions */}
+              {/* Dynamic Quick Actions */}
               <div className="bg-white/90 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/50">
                 <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                   <Settings className="text-purple-600" /> Quick Actions
                 </h3>
+                
                 <div className="space-y-4">
+                  {booking.booking.booking_status.toLowerCase() === 'pending' && (
+                    <Link 
+                      to='/dashboard'
+                      className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+                    >
+                      <CardIcon size={22} />
+                      Complete Payment
+                    </Link>
+                  )}
+                  
+                  {booking.booking.booking_status.toLowerCase() === 'active' && (
+                    <>
+                      <button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+                        <Clock size={22} />
+                        Extend Rental
+                      </button>
+                      <button className="w-full bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+                        <PhoneCall size={22} />
+                        Emergency Support
+                      </button>
+                    </>
+                  )}
+                  
+                  {booking.booking.booking_status.toLowerCase() === 'completed' && (
+                    <button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+                      <Star size={22} />
+                      Write a Review
+                    </button>
+                  )}
+                  
+                  {/* Always show these */}
                   <button
                     onClick={downloadPDF}
                     className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all"
                   >
                     <Download size={22} />
-                    Download PDF Receipt
+                    Download Receipt
                   </button>
-
+                  
                   <button
                     onClick={handlePrint}
                     className="w-full bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-105 transition-all"
@@ -429,15 +740,15 @@ const BookingConfirmation: React.FC = () => {
                     <Printer size={22} />
                     Print Receipt
                   </button>
-
+                  
                   <button onClick={handleShare} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-105 transition-all">
                     <Share2 size={20} /> Share Booking
                   </button>
-
+                  
                   <Link to="/my-bookings" className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-105 transition-all">
                     <FileText size={20} /> My Bookings
                   </Link>
-
+                  
                   <Link to="/vehicles" className="w-full border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-700 hover:text-blue-700 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all">
                     <Car size={20} /> Rent Another
                   </Link>
