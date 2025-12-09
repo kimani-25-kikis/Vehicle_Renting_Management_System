@@ -2170,174 +2170,261 @@ const UserDashboard: React.FC = () => {
     )
   }
 
-  const MpesaPhoneModal = ({ token }: { token: string }) => {
-    if (!showMpesaPhoneModal || !selectedBookingForMpesa) return null;
+const MpesaPhoneModal = () => {
+  // Get token directly from Redux using useSelector
+  const { token, user } = useSelector((state: RootState) => state.authSlice);
+  
+  if (!showMpesaPhoneModal || !selectedBookingForMpesa) return null;
 
-    const handleSubmit = async () => {
-      if (!phoneNumber.trim()) {
-        toast.error('Please enter your M-Pesa phone number');
-        return;
-      }
-
-      // Validate phone number format
-      const phoneRegex = /^(07|2547)\d{8}$/;
-      const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
-      
-      if (!phoneRegex.test(cleanPhone)) {
-        toast.error('Invalid phone number format. Use: 07XXXXXXXX or 2547XXXXXXXX');
-        return;
-      }
-
-      // Check if token exists
-      if (!token) {
-        toast.error('Authentication required. Please log in again.');
-        return;
-      }
-
-      setIsProcessingMpesa(true);
-      
+  const handleSubmit = async () => {
+    console.log('🔍 DEBUG - Starting M-Pesa payment...');
+    
+    // Use the SAME method as paymentApi to get the token
+    const getAuthToken = () => {
       try {
-        const toastId = toast.loading('Initializing M-Pesa payment...');
-        
-        const response = await axios.post(
-          `${apiDomain}/payments/mpesa/initialize`,
-          {
-            booking_id: selectedBookingForMpesa.booking_id,
-            amount: selectedBookingForMpesa.total_amount,
-            phone_number: cleanPhone
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`  // Use Bearer token
-            }
-          }
-        );
+        const persistAuth = localStorage.getItem('persist:auth')
+        if (!persistAuth) return null
 
-        toast.dismiss(toastId);
-        
-        if (response.data.success) {
-          const paymentData = response.data.data;
-          
-          console.log('✅ M-Pesa payment initialized:', paymentData);
-          
-          if (paymentData.requires_otp) {
-            toast.info(paymentData.display_text || 'Please check your phone for OTP');
-          } else {
-            toast.success(paymentData.display_text || 'Check your phone for STK Push');
-          }
-          
-          // Store payment info in localStorage
-          localStorage.setItem('pendingMpesaPayment', JSON.stringify({
-            bookingId: selectedBookingForMpesa.booking_id,
-            paymentId: paymentData.payment_id,
-            reference: paymentData.reference,
-            amount: selectedBookingForMpesa.total_amount
-          }));
-          
-          // Close modal
-          setShowMpesaPhoneModal(false);
-          setSelectedBookingForMpesa(null);
-          setPhoneNumber('');
-          
-        } else {
-          toast.error('Failed to initialize M-Pesa payment', {
-            description: response.data.error || 'Please try again'
-          });
-        }
-      } catch (error: any) {
-        console.error('M-Pesa error:', error);
-        
-        let errorMessage = 'Please try again later.';
-        if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
-        } else if (error.response?.data?.details) {
-          errorMessage = error.response.data.details;
-        }
-        
-        toast.error('M-Pesa payment failed', {
-          description: errorMessage
-        });
-      } finally {
-        setIsProcessingMpesa(false);
+        const authState = JSON.parse(persistAuth)
+        const tokenWithBearer = authState.token
+        if (!tokenWithBearer) return null
+
+        // Clean the token exactly like paymentApi does
+        return tokenWithBearer.replace(/^"Bearer /, '').replace(/"$/, '')
+      } catch (error) {
+        console.error('Error getting auth token:', error)
+        return null
       }
     };
 
-    const handleClose = () => {
-      setShowMpesaPhoneModal(false);
-      setSelectedBookingForMpesa(null);
-      setPhoneNumber('');
-      setIsProcessingMpesa(false);
-    };
+    // Get the clean token using paymentApi method
+    const cleanToken = getAuthToken();
+    
+    console.log('🔐 Token sources:');
+    console.log('1. Redux token:', token ? `${token.substring(0, 30)}...` : 'No token');
+    console.log('2. Clean token from paymentApi method:', cleanToken ? `${cleanToken.substring(0, 30)}...` : 'No clean token');
+    
+    // Use the clean token from paymentApi method
+    const tokenToUse = cleanToken || token || '';
+    
+    if (!tokenToUse || tokenToUse.trim() === '') {
+      toast.error('Authentication required. Please log in again.');
+      return;
+    }
 
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
+    if (!phoneNumber.trim()) {
+      toast.error('Please enter your M-Pesa phone number');
+      return;
+    }
+
+    // Validate phone number format
+    const phoneRegex = /^(07|2547)\d{8}$/;
+    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    
+    if (!phoneRegex.test(cleanPhone)) {
+      toast.error('Invalid phone number format. Use: 07XXXXXXXX or 2547XXXXXXXX');
+      return;
+    }
+
+    setIsProcessingMpesa(true);
+    
+    try {
+      const toastId = toast.loading('Initializing M-Pesa payment...');
+      
+      console.log('📤 Sending request with token:', tokenToUse.substring(0, 30) + '...');
+      
+      // Try with "Bearer " prefix (most common)
+      const response = await axios.post(
+        `${apiDomain}/payments/mpesa/initialize`,
+        {
+          booking_id: selectedBookingForMpesa.booking_id,
+          amount: selectedBookingForMpesa.total_amount,
+          phone_number: cleanPhone
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${tokenToUse}`
+          }
+        }
+      );
+
+      toast.dismiss(toastId);
+      
+      if (response.data.success) {
+        const paymentData = response.data.data;
         
-        <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full">
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Smartphone className="text-green-600" size={20} />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Pay with M-Pesa</h2>
-                <p className="text-sm text-gray-600">Booking #{selectedBookingForMpesa.booking_id}</p>
-              </div>
-            </div>
+        console.log('✅ M-Pesa payment initialized:', paymentData);
+        
+        if (paymentData.requires_otp) {
+          toast.info(paymentData.display_text || 'Please check your phone for OTP');
+        } else {
+          toast.success(paymentData.display_text || 'Check your phone for STK Push');
+        }
+        
+        // Store payment info in localStorage
+        localStorage.setItem('pendingMpesaPayment', JSON.stringify({
+          bookingId: selectedBookingForMpesa.booking_id,
+          paymentId: paymentData.payment_id,
+          reference: paymentData.reference,
+          amount: selectedBookingForMpesa.total_amount
+        }));
+        
+        // Close modal
+        setShowMpesaPhoneModal(false);
+        setSelectedBookingForMpesa(null);
+        setPhoneNumber('');
+        
+      } else {
+        toast.error('Failed to initialize M-Pesa payment', {
+          description: response.data.error || 'Please try again'
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ M-Pesa error:', error);
+      console.error('❌ Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers
+      });
+      
+      // If 401, try without "Bearer " prefix
+      if (error.response?.status === 401) {
+        console.log('🔄 Retrying without "Bearer " prefix...');
+        
+        try {
+          const retryResponse = await axios.post(
+            `${apiDomain}/payments/mpesa/initialize`,
+            {
+              booking_id: selectedBookingForMpesa.booking_id,
+              amount: selectedBookingForMpesa.total_amount,
+              phone_number: cleanPhone
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': tokenToUse  // Without "Bearer " prefix
+              }
+            }
+          );
+          
+          if (retryResponse.data.success) {
+            const paymentData = retryResponse.data.data;
+            toast.success('M-Pesa payment initialized! Check your phone for STK Push.');
+            
+            localStorage.setItem('pendingMpesaPayment', JSON.stringify({
+              bookingId: selectedBookingForMpesa.booking_id,
+              paymentId: paymentData.payment_id,
+              reference: paymentData.reference,
+              amount: selectedBookingForMpesa.total_amount
+            }));
+            
+            setShowMpesaPhoneModal(false);
+            setSelectedBookingForMpesa(null);
+            setPhoneNumber('');
+            return;
+          }
+        } catch (retryError: any) {
+          console.error('❌ Retry also failed:', retryError);
+        }
+      }
+      
+      let errorMessage = 'Please try again later.';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data) {
+        errorMessage = JSON.stringify(error.response.data);
+      }
+      
+      toast.error('M-Pesa payment failed', {
+        description: errorMessage
+      });
+    } finally {
+      setIsProcessingMpesa(false);
+    }
+  };
 
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Enter your M-Pesa phone number
-              </label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="07XXXXXXXX or 2547XXXXXXXX"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                autoFocus
-              />
-              <p className="text-sm text-gray-500 mt-2">
-                You will receive an STK Push on this number
+  const handleClose = () => {
+    setShowMpesaPhoneModal(false);
+    setSelectedBookingForMpesa(null);
+    setPhoneNumber('');
+    setIsProcessingMpesa(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
+      
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <Smartphone className="text-green-600" size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Pay with M-Pesa</h2>
+              <p className="text-sm text-gray-600">Booking #{selectedBookingForMpesa.booking_id}</p>
+              {/* Add debug info */}
+              <p className="text-xs text-gray-500 mt-1">
+                User: {user?.first_name} | Token: {token ? '✓ Available' : '✗ Missing'}
               </p>
             </div>
+          </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="text-yellow-600" size={16} />
-                <span className="font-semibold text-yellow-800">Important:</span>
-              </div>
-              <ul className="text-sm text-yellow-700 space-y-1">
-                <li>• Ensure your phone is ON and has network signal</li>
-                <li>• You have sufficient M-Pesa balance</li>
-                <li>• Transaction limit is KES 150,000 per day</li>
-                <li>• Enter your M-Pesa PIN when prompted</li>
-                <li>• Keep your phone nearby - STK Push expires in 2 minutes</li>
-              </ul>
-            </div>
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Enter your M-Pesa phone number
+            </label>
+            <input
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="07XXXXXXXX or 2547XXXXXXXX"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+              autoFocus
+            />
+            <p className="text-sm text-gray-500 mt-2">
+              You will receive an STK Push on this number
+            </p>
+          </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleClose}
-                disabled={isProcessingMpesa}
-                className="flex-1 px-6 py-3 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isProcessingMpesa || !phoneNumber.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessingMpesa ? 'Processing...' : 'Continue'}
-              </button>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="text-yellow-600" size={16} />
+              <span className="font-semibold text-yellow-800">Important:</span>
             </div>
+            <ul className="text-sm text-yellow-700 space-y-1">
+              <li>• Ensure your phone is ON and has network signal</li>
+              <li>• You have sufficient M-Pesa balance</li>
+              <li>• Transaction limit is KES 150,000 per day</li>
+              <li>• Enter your M-Pesa PIN when prompted</li>
+              <li>• Keep your phone nearby - STK Push expires in 2 minutes</li>
+            </ul>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleClose}
+              disabled={isProcessingMpesa}
+              className="flex-1 px-6 py-3 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isProcessingMpesa || !phoneNumber.trim()}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isProcessingMpesa ? 'Processing...' : 'Continue'}
+            </button>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 // In UserDashboard.tsx - After payment, update the booking card
 useEffect(() => {
   const searchParams = new URLSearchParams(location.search)
@@ -2804,7 +2891,7 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
         </div>
       </div>
 
-        <MpesaPhoneModal token={token || ''} />
+        <MpesaPhoneModal />
 
       {/* Damage Report Modal */}
       {showDamageModal && (

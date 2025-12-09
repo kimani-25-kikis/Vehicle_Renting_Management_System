@@ -223,23 +223,23 @@ const UserManagement: React.FC = () => {
   }
 
   // FIXED: Role update function - Use updateUserDetails instead of updateUserType
-  const handleUpdateRole = async (userId: number, currentRole: string) => {
+
+// Single function for updating any user field including role
+const handleUpdateRole = async (userId: number, currentRole: string) => {
     setIsProcessing(userId)
     const newRole = currentRole === 'admin' ? 'customer' : 'admin'
     
     try {
-      // FIX: Use updateUserDetails instead of updateUserType
+      // Now updateUserDetails can handle user_type
       const response = await updateUserDetails({
         user_id: userId,
         user_type: newRole
       }).unwrap()
-      console.log("🚀 ~ handleUpdateRole ~ response:", response)
-
       
-      
-      // toast.success(`User rol/e updated to ${newRole === 'admin' ? 'Administrator' : 'Customer'}!`, {
-      //   icon: <Shield className="text-orange-500" />,
-      // })
+      toast.success(`User role updated to ${newRole === 'admin' ? 'Administrator' : 'Customer'}!`, {
+        icon: <Shield className="text-orange-500" />,
+      })
+      refetch() // Refresh the user list
     } catch (error: any) {
       console.error('Role update error:', error)
       toast.error('Failed to update user role', {
@@ -249,7 +249,7 @@ const UserManagement: React.FC = () => {
       setIsProcessing(null)
       setActionMenu(null)
     }
-  }
+}
 
   const handleBulkAction = async (action: 'delete' | 'makeAdmin' | 'makeCustomer') => {
     if (selectedUsers.length === 0) {

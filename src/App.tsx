@@ -28,6 +28,8 @@ import AdminRoute from './components/auth/AdminRoute'
 import UserRoute from './components/auth/UserRoute'
 import PublicRoute from './components/auth/PublicRoute'
 import PaymentCallback from './UserDashboard/paymentCallBack'
+import Contact from './components/Contact'
+import About from './components/About'
 
 // Notifications
 import { Toaster } from 'sonner'
@@ -77,6 +79,15 @@ function App() {
       path:'/payment-callback',
       element:<PaymentCallback />
     }, 
+    {
+      path:'/contact',
+      element :<Contact/>
+    },
+    {
+
+      path: '/about',
+      element: <About />
+    },
 
     // ---------------------
     // ADMIN ROUTES

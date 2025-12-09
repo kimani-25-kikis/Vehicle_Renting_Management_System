@@ -2,6 +2,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { User } from '../../types/Types';
 import { apiDomain } from '../../apiDomain/apiDomain';
 
+
 export interface ChangePasswordRequest {
   current_password: string
   new_password: string
@@ -30,15 +31,15 @@ export const userApi = createApi({
 
         // Update user details
         updateUsersDetails: builder.mutation<{ message: string }, { 
-            user_id: number 
-            } & Partial<Pick<User, 'first_name' | 'last_name' | 'email' | 'phone_number' | 'address' | 'user_type'>>>({
-                query: ({ user_id, ...updateUser }) => ({
-                    url: `users/${user_id}`,
-                    method: 'PUT',
-                    body: updateUser,
-                }),
-                invalidatesTags: ['Users'],
-            }),
+    user_id: number 
+    } & Partial<Pick<User, 'first_name' | 'last_name' | 'email' | 'phone_number' | 'address' | 'user_type'>>>({
+        query: ({ user_id, ...updateUser }) => ({
+            url: `users/${user_id}`,
+            method: 'PUT',
+            body: updateUser,
+        }),
+        invalidatesTags: ['Users'],
+    }),
         // create user
                 createUser: builder.mutation<{ message: string; user: User }, Partial<User>>({
                 query: (newUser) => ({
