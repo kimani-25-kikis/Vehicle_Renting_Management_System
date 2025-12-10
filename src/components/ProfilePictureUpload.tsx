@@ -1,11 +1,12 @@
-// components/ProfilePictureUpload.tsx
 import React, { useState, useRef } from 'react';
-import { User, Camera, Upload, X, Loader, Check } from 'lucide-react';
+import { User, Camera, X, Loader, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDispatch } from 'react-redux';
 import { 
   useUploadProfilePictureMutation, 
   useRemoveProfilePictureMutation 
 } from '../features/api/UserApi';
+import { updateUserProfile } from '../features/slice/AuthSlice';
 
 interface ProfilePictureUploadProps {
   user: {
@@ -24,6 +25,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
   onPictureUpdate,
   size = 'lg'
 }) => {
+  const dispatch = useDispatch();
   const [uploadProfilePicture, { isLoading: isUploading }] = useUploadProfilePictureMutation();
   const [removeProfilePicture, { isLoading: isRemoving }] = useRemoveProfilePictureMutation();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -72,9 +74,21 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
     const file = fileInputRef.current.files[0];
     const formData = new FormData();
     formData.append('profile_picture', file);
+    formData.append('user_id', user.user_id.toString());
 
+    // Debug logging
+    console.log('📤 Uploading for user:', user.user_id, user.email);
+    
     try {
       const response = await uploadProfilePicture(formData).unwrap();
+      
+      console.log('✅ Upload successful:', response);
+      
+      // ✅ Update Redux state with new profile picture
+      dispatch(updateUserProfile({
+        profile_picture: response.profile_picture,
+        profile_picture_public_id: response.user?.profile_picture_public_id
+      }));
       
       toast.success('Profile picture updated!', {
         description: 'Your profile picture has been updated successfully.'
@@ -88,7 +102,12 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
         fileInputRef.current.value = '';
       }
     } catch (error: any) {
-      console.error('Upload error:', error);
+      console.error('❌ Upload error:', {
+        status: error?.status,
+        data: error?.data,
+        message: error?.message
+      });
+      
       toast.error('Upload failed', {
         description: error?.data?.error || error?.data?.message || 'Please try again.'
       });
@@ -99,7 +118,18 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
     if (!confirm('Are you sure you want to remove your profile picture?')) return;
 
     try {
-      const response = await removeProfilePicture().unwrap();
+      console.log('🗑️ Removing picture for user:', user.user_id);
+      
+      // ✅ Send user_id in the request body
+      const response = await removeProfilePicture({ user_id: user.user_id }).unwrap();
+      
+      console.log('✅ Removal successful:', response);
+      
+      // ✅ Update Redux state to remove profile picture
+      dispatch(updateUserProfile({
+        profile_picture: undefined,
+        profile_picture_public_id: undefined
+      }));
       
       toast.success('Profile picture removed', {
         description: 'Your profile picture has been removed successfully.'
@@ -107,7 +137,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
       
       onPictureUpdate(null);
     } catch (error: any) {
-      console.error('Remove error:', error);
+      console.error('❌ Remove error:', error);
       toast.error('Remove failed', {
         description: error?.data?.error || error?.data?.message || 'Please try again.'
       });
@@ -235,6 +265,9 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
               <div className="mt-4 text-center">
                 <p className="text-sm text-gray-500">
                   Recommended: Square image, at least 400x400 pixels
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  User ID: {user.user_id}
                 </p>
               </div>
             </div>

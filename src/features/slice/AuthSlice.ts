@@ -12,6 +12,8 @@ interface User {
     updated_at: string
     phone_number?: string
     address?: string
+    profile_picture?: string           
+    profile_picture_public_id?: string
 }
 
 interface AuthState {
@@ -36,9 +38,6 @@ export const authSlice = createSlice({
             state.token = action.payload.token;
             state.isAuthenticated = true;
             
-            // CRITICAL: Store token in localStorage
-            // localStorage.setItem('token', action.payload.token);
-            // console.log('✅ Token stored in localStorage');
         },
         
         // Clear user credentials
@@ -47,21 +46,20 @@ export const authSlice = createSlice({
             state.token = null;
             state.isAuthenticated = false;
             
-            // CRITICAL: Remove token from localStorage
-            // localStorage.removeItem('token');
+        },
+
+        updateUserProfile: (state, action: PayloadAction<Partial<User>>) => {
+            if (state.user) {
+                state.user = {
+                    ...state.user,
+                    ...action.payload
+                };
+            }
         },
         
-        // NEW: Initialize auth from localStorage on app load
-        // initializeAuth: (state) => {
-        //     const token = localStorage.getItem('token');
-        //     if (token) {
-        //         state.token = token;
-        //         state.isAuthenticated = true;
-        //         console.log('🔄 Auth initialized from localStorage');
-        //     }
-        // }
+        
     },
 })
 
-export const { setCredentials, clearCredentials,  } = authSlice.actions
+export const { setCredentials, clearCredentials, updateUserProfile  } = authSlice.actions
 export default authSlice.reducer

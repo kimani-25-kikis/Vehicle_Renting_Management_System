@@ -6,6 +6,7 @@ import { apiDomain } from '../../apiDomain/apiDomain';
 export interface ChangePasswordRequest {
   current_password: string
   new_password: string
+  email:string
 }
 
 
@@ -100,10 +101,11 @@ export const userApi = createApi({
           success: boolean;
           message: string;
           user: User;
-        }, void>({
-            query: () => ({
+        }, { user_id: number }>({
+            query: ({ user_id }) => ({
                 url: '/users/profile-picture',
                 method: 'DELETE',
+                body: { user_id },  
             }),
             invalidatesTags: ['Users'],
         }),

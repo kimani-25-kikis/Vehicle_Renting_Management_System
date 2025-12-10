@@ -74,6 +74,7 @@ interface User {
   email: string
   phone_number?: string
   address?: string
+  profile_picture?: string
 }
 
 interface SpendingStats {
@@ -108,14 +109,22 @@ interface SpendingStats {
 
 
 // Profile Tab Component
-  const ProfileTab: React.FC<{ user: User }> = ({ user }) => {
+const ProfileTab: React.FC = () => {
   const [updateUser, { isLoading: isUpdating }] = useUpdateUsersDetailsMutation()
   const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation() 
   const [activeSection, setActiveSection] = useState<'personal' | 'security'>('personal')
   const [toastId, setToastId] = useState<string | number | null>(null)
-  const { token } = useSelector((state: RootState) => state.authSlice)
+  const { token, user } = useSelector((state: RootState) => state.authSlice)
 
-  const [userData, setUserData] = useState<User>(user);
+  const [userData, setUserData] = useState<User>({
+    user_id: user?.user_id || 0,
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
+    email: user?.email || '',
+    phone_number: user?.phone_number || '',
+    address: user?.address || '',
+    profile_picture: user?.profile_picture || ''
+  });
 
   const [showMpesaPhoneModal, setShowMpesaPhoneModal] = useState(false);
   const [selectedBookingForMpesa, setSelectedBookingForMpesa] = useState<BookingData | null>(null);
@@ -126,11 +135,11 @@ interface SpendingStats {
 
   // Personal Info Form
   const [personalInfo, setPersonalInfo] = useState({
-    first_name: user.first_name || '',
-    last_name: user.last_name || '',
-    email: user.email || '',
-    phone_number: user.phone_number || '',
-    address: user.address || ''
+    first_name: userData.first_name || '',
+    last_name: userData.last_name || '',
+    email: userData.email || '',
+    phone_number: userData.phone_number || '',
+    address: userData.address || ''
   })
 
   // Security Form
@@ -289,9 +298,15 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
       }
 
       await updateUser({
-        user_id: user.user_id,
+        user_id: userData.user_id,
         ...updateData
       }).unwrap()
+
+      // Update local state
+      setUserData(prev => ({
+        ...prev,
+        ...updateData
+      }));
 
       toast.success('Profile updated successfully!', { 
         id: toastId,
@@ -325,8 +340,9 @@ const handleSecurityUpdate = async (e: React.FormEvent) => {
     setToastId(toastId)
 
     try {
-      // ✅ Use RTK Query mutation
+      // Use email instead of user_id since route is unprotected
       await changePassword({
+        email: userData.email,
         current_password: securityInfo.current_password,
         new_password: securityInfo.new_password
       }).unwrap()
@@ -360,9 +376,10 @@ const handleSecurityUpdate = async (e: React.FormEvent) => {
   }
 
   const handlePictureUpdate = (newPictureUrl: string | null) => {
+    const updatedUrl = newPictureUrl || '';
     setUserData(prev => ({
       ...prev,
-      profile_picture: newPictureUrl || undefined
+      profile_picture: updatedUrl
     }));
   };
 
@@ -506,11 +523,11 @@ const handleSecurityUpdate = async (e: React.FormEvent) => {
                 <button
                   type="button"
                   onClick={() => setPersonalInfo({
-                    first_name: user.first_name || '',
-                    last_name: user.last_name || '',
-                    email: user.email || '',
-                    phone_number: user.phone_number || '',
-                    address: user.address || ''
+                    first_name: userData.first_name || '',
+                    last_name: userData.last_name || '',
+                    email: userData.email || '',
+                    phone_number: userData.phone_number || '',
+                    address: userData.address || ''
                   })}
                   className="px-6 py-3 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
                 >
@@ -1050,7 +1067,7 @@ const ReviewModal = ({
   isSubmitting: boolean
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
@@ -2112,6 +2129,7 @@ const UserDashboard: React.FC = () => {
   const [isProcessingMpesa, setIsProcessingMpesa] = useState(false);
 
   const { token, user } = useSelector((state: RootState) => state.authSlice)
+  
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const paymentSuccess = searchParams.get('payment_success')
@@ -2131,7 +2149,7 @@ const UserDashboard: React.FC = () => {
     if (!showSuccessModal) return null
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
         <div className="bg-white rounded-2xl p-8 max-w-md w-full">
           <div className="text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2367,7 +2385,7 @@ const MpesaPhoneModal = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
       
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full">
@@ -2449,7 +2467,7 @@ useEffect(() => {
     toast.success('Payment processed! Booking is now pending approval.')
     
     // Optionally refetch bookings to update status
-    refetchBookings()
+    // refetchBookings()
     
     // Clear URL
     window.history.replaceState({}, '', '/dashboard')
@@ -2618,8 +2636,18 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center">
-                  <User className="text-white" size={28} />
+                <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white">
+                  {user?.profile_picture ? (
+                    <img 
+                      src={user.profile_picture} 
+                      alt={`${user.first_name} ${user.last_name}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center">
+                      <User className="text-white" size={28} />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-900 to-blue-700 bg-clip-text text-transparent">
@@ -2882,8 +2910,8 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
               )}
 
               {/* Profile Tab */}
-              {activeTab === 'profile' && user && (
-                <ProfileTab user={user} />
+              {activeTab === 'profile' && (
+                <ProfileTab />
               )}
 
               {activeTab === 'spending' && (
@@ -2905,10 +2933,11 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
       </div>
 
         <MpesaPhoneModal />
+        <SimplePaymentModal />
 
       {/* Damage Report Modal */}
       {showDamageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDamageModal(false)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="text-center">
@@ -2941,7 +2970,7 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
 
       {/* Review Modal */}
       {showReviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowReviewModal(false)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="text-center">
@@ -2985,7 +3014,7 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
 
       {/* Cancel Modal */}
       {showCancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowCancelModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="text-center">
@@ -3016,7 +3045,3 @@ const handlePayment = async (booking: any, method: 'card' | 'mpesa') => {
 }
 
 export default UserDashboard
-
-function refetchBookings() {
-  throw new Error('Function not implemented.')
-}
