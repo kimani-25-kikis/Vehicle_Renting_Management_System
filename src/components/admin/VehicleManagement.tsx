@@ -22,16 +22,18 @@ import {
 } from '../../features/api/vehiclesApi'
 import type {  CreateVehicleRequest } from '../../features/api/vehiclesApi'
 import type { Vehicle } from '../../types/Types'  
+import VehicleImageUpload from './VehicleImageUpload'
 
 // Add Vehicle Modal Component
-// Improved AddVehicleModal Component
+
+
 const AddVehicleModal: React.FC<{
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: CreateVehicleRequest) => void
   isLoading: boolean
 }> = ({ isOpen, onClose, onSubmit, isLoading }) => {
-  const [formData, setFormData] = useState<CreateVehicleRequest>({
+  const [formData, setFormData] = useState<CreateVehicleRequest & { imageFile?: File }>({
     rental_rate: 0,
     current_location: '',
     manufacturer: '',
@@ -41,56 +43,118 @@ const AddVehicleModal: React.FC<{
     transmission: 'Automatic',
     seating_capacity: 5,
     vehicle_type: 'four-wheeler',
-  })
+    imageFile: undefined, 
+})
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [password, setPassword] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validate form
-    const newErrors: Record<string, string> = {}
-    
-    if (!formData.rental_rate || formData.rental_rate <= 0) {
-      newErrors.rental_rate = 'Rental rate must be greater than 0'
-    }
-    
-    if (!formData.current_location?.trim()) {
-      newErrors.current_location = 'Current location is required'
-    }
-    
-    if (!formData.manufacturer?.trim()) {
-      newErrors.manufacturer = 'Manufacturer is required'
-    }
-    
-    if (!formData.model?.trim()) {
-      newErrors.model = 'Model is required'
-    }
-    
-    if (!formData.year || formData.year < 1900 || formData.year > new Date().getFullYear()) {
-      newErrors.year = 'Please enter a valid year'
-    }
-    
-    if (!formData.seating_capacity || formData.seating_capacity < 1) {
-      newErrors.seating_capacity = 'Seating capacity must be at least 1'
-    }
-    
-    setErrors(newErrors)
-    
-    if (Object.keys(newErrors).length === 0) {
-      // Submit with all required data
-      const submitData = {
-        ...formData,
-        // Make sure all required fields are present
-        rental_rate: Number(formData.rental_rate),
-        year: Number(formData.year),
-        seating_capacity: Number(formData.seating_capacity),
-        engine_capacity: formData.engine_capacity ? Number(formData.engine_capacity) : undefined,
-      }
-      onSubmit(submitData)
-    }
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  
+  // Validate form
+  const newErrors: Record<string, string> = {}
+  
+  // Create variables with type assertions after validation
+  const rental_rate = formData.rental_rate;
+  const current_location = formData.current_location?.trim();
+  const manufacturer = formData.manufacturer?.trim();
+  const model = formData.model?.trim();
+  const year = formData.year;
+  const seating_capacity = formData.seating_capacity;
+  
+  if (!rental_rate || rental_rate <= 0) {
+    newErrors.rental_rate = 'Rental rate must be greater than 0'
   }
+  
+  if (!current_location) {
+    newErrors.current_location = 'Current location is required'
+  }
+  
+  if (!manufacturer) {
+    newErrors.manufacturer = 'Manufacturer is required'
+  }
+  
+  if (!model) {
+    newErrors.model = 'Model is required'
+  }
+  
+  if (!year || year < 1900 || year > new Date().getFullYear()) {
+    newErrors.year = 'Please enter a valid year'
+  }
+  
+  if (!seating_capacity || seating_capacity < 1) {
+    newErrors.seating_capacity = 'Seating capacity must be at least 1'
+  }
+  
+  setErrors(newErrors)
+  
+  // Check if all required fields are present AND there are no errors
+  if (Object.keys(newErrors).length === 0 && 
+      rental_rate && 
+      current_location && 
+      manufacturer && 
+      model && 
+      year && 
+      seating_capacity) {
+    
+    // Create FormData object for file upload
+    const formDataToSubmit = new FormData()
+    
+    // Add all required fields (TypeScript now knows these are defined)
+    formDataToSubmit.append('rental_rate', rental_rate.toString())
+    formDataToSubmit.append('current_location', current_location)
+    formDataToSubmit.append('manufacturer', manufacturer)
+    formDataToSubmit.append('model', model)
+    formDataToSubmit.append('year', year.toString())
+    formDataToSubmit.append('fuel_type', formData.fuel_type || 'Petrol')
+    formDataToSubmit.append('transmission', formData.transmission || 'Automatic')
+    formDataToSubmit.append('seating_capacity', seating_capacity.toString())
+    formDataToSubmit.append('vehicle_type', formData.vehicle_type || 'four-wheeler')
+    
+    // Add optional fields (check if they exist)
+    if (formData.engine_capacity) {
+      formDataToSubmit.append('engine_capacity', formData.engine_capacity.toString())
+    }
+    if (formData.color) {
+      formDataToSubmit.append('color', formData.color)
+    }
+    if (formData.features) {
+      formDataToSubmit.append('features', formData.features)
+    }
+    if (formData.availability !== undefined) {
+      formDataToSubmit.append('availability', formData.availability.toString())
+    }
+    if (formData.image_url) {
+      formDataToSubmit.append('image_url', formData.image_url)
+    }
+    
+    // Add image file if uploaded
+    if (formData.imageFile) {
+      console.log('Adding image file to FormData:', formData.imageFile.name)
+      formDataToSubmit.append('image', formData.imageFile)
+    }
+    
+    // Debug: Check FormData contents
+    console.log('FormData entries before submit:')
+    for (let [key, value] of formDataToSubmit.entries()) {
+      console.log(key, value instanceof File ? `File: ${value.name}` : value)
+    }
+    
+    // Submit FormData instead of JSON
+    onSubmit(formDataToSubmit as any)
+  } else {
+    console.error('Form validation failed or missing required fields:', {
+      rental_rate,
+      current_location,
+      manufacturer,
+      model,
+      year,
+      seating_capacity,
+      errors: newErrors
+    })
+  }
+}
 
   const handleInputChange = (field: keyof CreateVehicleRequest, value: any) => {
     setFormData(prev => ({
@@ -140,30 +204,59 @@ const AddVehicleModal: React.FC<{
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header with gradient */}
-          <div className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-20" />
-            <div className="relative p-6 border-b border-gray-700">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl">
-                    <Car className="text-white" size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">Add New Vehicle</h2>
-                    <p className="text-gray-400 text-sm mt-1">Fill in all required fields to add a new vehicle</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={onClose}
-                  disabled={isLoading}
-                  className="p-2 hover:bg-gray-700/50 rounded-xl transition-colors disabled:opacity-50"
-                >
-                  <XCircle className="text-gray-400" size={24} />
-                </button>
-              </div>
-            </div>
-          </div>
-
+          {/* Image Upload Section */}
+<div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
+  <h3 className="font-semibold text-lg text-white mb-4 flex items-center gap-2">
+    <ImageIcon size={20} className="text-purple-400" />
+    Vehicle Images
+  </h3>
+  
+  {/* Image Upload Component */}
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-gray-400 mb-3">
+      Main Vehicle Image
+    </label>
+    <VehicleImageUpload
+      onImageSelect={(file) => {
+        if (file) {
+          setFormData(prev => ({ ...prev, imageFile: file }));
+        } else {
+          setFormData(prev => ({ ...prev, imageFile: undefined }));
+        }
+      }}
+      disabled={isLoading}
+      required={false}
+    />
+  </div>
+  
+  {/* Optional URL fallback (for backward compatibility) */}
+  <div className="mt-4 pt-4 border-t border-gray-700">
+    <details className="group">
+      <summary className="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-gray-300">
+        <span className="text-sm">Or use image URL instead</span>
+        <span className="transition-transform group-open:rotate-180">▼</span>
+      </summary>
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
+          Image URL (Alternative)
+        </label>
+        <div className="relative">
+          <ImageIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="url"
+            value={formData.image_url || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, image_url: e.target.value }))}
+            className="w-full pl-10 bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            placeholder="https://example.com/vehicle-image.jpg"
+          />
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Provide a direct image link if you prefer not to upload
+        </p>
+      </div>
+    </details>
+  </div>
+</div>
           {/* Form Content */}
           <div className="p-6 max-h-[70vh] overflow-y-auto">
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -219,7 +312,7 @@ const AddVehicleModal: React.FC<{
                         )}
                       </div>
 
-                      <div>
+                      {/* <div>
                         <label className="block text-sm font-medium text-gray-400 mb-1">
                           Image URL
                         </label>
@@ -236,7 +329,7 @@ const AddVehicleModal: React.FC<{
                         <p className="mt-2 text-xs text-gray-500">
                           <span className="text-blue-400">💡 Tip:</span> Use a direct image link for best results
                         </p>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
 
@@ -1150,26 +1243,43 @@ const VehicleManagement: React.FC = () => {
     }
   }
 
-  const handleAddVehicle = async (formData: CreateVehicleRequest) => {
-  console.log('Submitting vehicle data:', formData); // Add this
+  const handleAddVehicle = async (formData: FormData | CreateVehicleRequest) => {
+  console.log('handleAddVehicle called with:', formData)
   
   try {
-    const vehicleData = {
-      ...formData,
-      availability: formData.availability !== undefined ? formData.availability : true,
-    };
+    // Check if it's FormData (file upload) or JSON
+    const isFormData = formData instanceof FormData
     
-    console.log('Data being sent to API:', vehicleData); // Add this
+    console.log('Is FormData?', isFormData)
     
-    const result = await createVehicle(vehicleData).unwrap();
-    console.log('API response:', result); // Add this
+    if (isFormData) {
+      // Debug FormData contents
+      console.log('FormData entries:')
+      for (let [key, value] of (formData as FormData).entries()) {
+        console.log(key, value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value)
+      }
+    }
     
-    toast.success('Vehicle added successfully');
-    setShowAddModal(false);
-    refetch();
+    // Use the createVehicle mutation (it now handles both FormData and JSON)
+    const result = await createVehicle(formData).unwrap()
+    console.log('API response:', result)
+    
+    toast.success('Vehicle added successfully')
+    setShowAddModal(false)
+    refetch()
   } catch (error: any) {
-    console.error('Error adding vehicle:', error); // Add this
-    toast.error(error?.data?.error || 'Failed to add vehicle');
+    console.error('Error adding vehicle:', error)
+    
+    // More detailed error handling
+    if (error?.data?.error) {
+      toast.error(`Failed to add vehicle: ${error.data.error}`)
+    } else if (error?.status === 413) {
+      toast.error('Image file too large. Maximum size is 10MB.')
+    } else if (error?.status === 415) {
+      toast.error('Invalid image format. Please use JPG, PNG, WEBP, or GIF.')
+    } else {
+      toast.error('Failed to add vehicle. Please try again.')
+    }
   }
 }
 

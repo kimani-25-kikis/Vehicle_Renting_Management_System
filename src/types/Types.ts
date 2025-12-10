@@ -26,6 +26,8 @@ export interface User{
     updated_at: string;
     created_at:string;
     user_type: 'customer' | 'admin'
+    profile_picture?: string
+    profile_picture_public_id?: string
 }
 
 

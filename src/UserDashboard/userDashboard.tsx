@@ -36,6 +36,8 @@ import type { RootState } from '../store/store'
 
 import { useEffect } from 'react'
 
+import ProfilePictureUpload from '../components/ProfilePictureUpload';
+
 
 
 const stripePromise = loadStripe('pk_test_51SYBIfE5TRP3rh7FeOjNUDed6nQ2v8OAVQEgn1g6YrYxSKIm7gKoiBJlieusfAfSl1DOWPdaWHNHQIkQ6P5B0kT800IDfFLtsu');
@@ -112,6 +114,8 @@ interface SpendingStats {
   const [activeSection, setActiveSection] = useState<'personal' | 'security'>('personal')
   const [toastId, setToastId] = useState<string | number | null>(null)
   const { token } = useSelector((state: RootState) => state.authSlice)
+
+  const [userData, setUserData] = useState<User>(user);
 
   const [showMpesaPhoneModal, setShowMpesaPhoneModal] = useState(false);
   const [selectedBookingForMpesa, setSelectedBookingForMpesa] = useState<BookingData | null>(null);
@@ -355,17 +359,26 @@ const handleSecurityUpdate = async (e: React.FormEvent) => {
     }
   }
 
+  const handlePictureUpdate = (newPictureUrl: string | null) => {
+    setUserData(prev => ({
+      ...prev,
+      profile_picture: newPictureUrl || undefined
+    }));
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-6">
-          <div className="w-24 h-24 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center">
-            <User size={40} className="text-white" />
-          </div>
+          <ProfilePictureUpload 
+            user={userData}
+            onPictureUpdate={handlePictureUpdate}
+            size="lg"
+          />
           <div>
-            <h1 className="text-3xl font-bold">{user.first_name} {user.last_name}</h1>
-            <p className="text-blue-200">{user.email}</p>
+            <h1 className="text-3xl font-bold">{userData.first_name} {userData.last_name}</h1>
+            <p className="text-blue-200">{userData.email}</p>
             <div className="flex items-center gap-2 mt-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span className="text-sm text-blue-200">Active Account</span>

@@ -35,6 +35,7 @@ export interface CreateVehicleRequest {
     features?: string
     vehicle_type?: string
     image_url?: string
+    imageFile?: File  
 }
 
 // Update Vehicle Request Type
@@ -42,6 +43,19 @@ export interface UpdateVehicleRequest {
     rental_rate?: number
     availability?: boolean
     current_location?: string
+}
+
+export interface VehicleImageUploadResponse {
+    success: boolean
+    message: string
+    image_url?: string
+    images?: Array<{
+        secure_url: string
+        public_id: string
+        format: string
+        width: number
+        height: number
+    }>
 }
 
 export const vehiclesApi = createApi({
@@ -56,7 +70,7 @@ export const vehiclesApi = createApi({
             return headers
         },
     }),
-    tagTypes: ['Vehicles'],
+    tagTypes: ['Vehicles', 'VehicleImages'],
     endpoints: (builder) => ({
         // GET all vehicles with filters
         getVehicles: builder.query<VehiclesResponse, VehicleQueryParams>({
@@ -90,12 +104,18 @@ export const vehiclesApi = createApi({
         }),
         
         // CREATE vehicle
-        createVehicle: builder.mutation<{ message: string; vehicle: Vehicle }, CreateVehicleRequest>({
-            query: (vehicleData) => ({
-                url: '/vehicles',
-                method: 'POST',
-                body: vehicleData,
-            }),
+        createVehicle: builder.mutation<{ message: string; vehicle: Vehicle }, FormData | CreateVehicleRequest>({
+            query: (vehicleData) => {
+                // Check if it's FormData (file upload) or JSON
+                const isFormData = vehicleData instanceof FormData
+                
+                return {
+                    url: '/vehicles',
+                    method: 'POST',
+                    body: vehicleData,
+                    headers: isFormData ? undefined : { 'Content-Type': 'application/json' }
+                }
+            },
             invalidatesTags: ['Vehicles'],
         }),
         
@@ -136,7 +156,78 @@ export const vehiclesApi = createApi({
             }),
             invalidatesTags: ['Vehicles'],
         }),
+
+            // NEW: Upload vehicle image
+        uploadVehicleImage: builder.mutation<VehicleImageUploadResponse, {
+            vehicle_spec_id: number
+            image: File
+        }>({
+            query: ({ vehicle_spec_id, image }) => {
+                const formData = new FormData()
+                formData.append('image', image)
+                
+                return {
+                    url: `/vehicles/${vehicle_spec_id}/image`,
+                    method: 'POST',
+                    body: formData,
+                }
+            },
+            invalidatesTags: ['Vehicles', 'VehicleImages'],
+        }),
+        
+        // NEW: Upload multiple vehicle images
+        uploadVehicleImages: builder.mutation<VehicleImageUploadResponse, {
+            vehicle_spec_id: number
+            images: File[]
+        }>({
+            query: ({ vehicle_spec_id, images }) => {
+                const formData = new FormData()
+                images.forEach((image, index) => {
+                    formData.append('images', image)
+                })
+                
+                return {
+                    url: `/vehicles/${vehicle_spec_id}/images`,
+                    method: 'POST',
+                    body: formData,
+                }
+            },
+            invalidatesTags: ['Vehicles', 'VehicleImages'],
+        }),
+        
+        // NEW: Create vehicle with image upload (all-in-one)
+        createVehicleWithImage: builder.mutation<{ message: string; vehicle: Vehicle }, {
+            vehicleData: Omit<CreateVehicleRequest, 'image_url'>
+            imageFile?: File
+        }>({
+            query: ({ vehicleData, imageFile }) => {
+                const formData = new FormData()
+                
+                // Add all vehicle data to FormData
+                Object.entries(vehicleData).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        formData.append(key, value.toString())
+                    }
+                })
+                
+                // Add image file if provided
+                if (imageFile) {
+                    formData.append('image', imageFile)
+                }
+                
+                return {
+                    url: '/vehicles',
+                    method: 'POST',
+                    body: formData,
+                }
+            },
+            invalidatesTags: ['Vehicles'],
+        }),
+
+        
     }),
+
+    
 })
 
 export const {
@@ -148,4 +239,7 @@ export const {
     useUpdateVehicleMutation,
     useDeleteVehicleMutation,
     useUpdateVehicleAvailabilityMutation,
+    useUploadVehicleImageMutation,      
+    useUploadVehicleImagesMutation,     
+    useCreateVehicleWithImageMutation,  
 } = vehiclesApi
