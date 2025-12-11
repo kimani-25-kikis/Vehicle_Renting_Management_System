@@ -9,17 +9,14 @@ import {
 import { useGetVehicleByIdQuery } from '../features/api/vehiclesApi'
 import { 
   Calendar, MapPin, Car, Clock, CheckCircle, 
-  XCircle, Loader, ArrowLeft, Eye, Trash2
+  XCircle, Loader, ArrowLeft, Eye, Trash2, AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {loadStripe} from "@stripe/stripe-js"
 const stripePromise = loadStripe('pk_test_51SYBIfE5TRP3rh7FeOjNUDed6nQ2v8OAVQEgn1g6YrYxSKIm7gKoiBJlieusfAfSl1DOWPdaWHNHQIkQ6P5B0kT800IDfFLtsu');
 
-
-
 export interface BookingData {
-
-booking_id: number
+  booking_id: number
   user_id: number
   vehicle_id: number
   pickup_location: string
@@ -28,7 +25,6 @@ booking_id: number
   return_date: string
   booking_date: string
   total_amount: number
-
   driver_license_number: string
   driver_license_expiry: string
   driver_license_front_url: string
@@ -40,7 +36,6 @@ booking_id: number
   verified_by_admin: boolean
   verified_at: string | null
   admin_notes: string | null
-
   created_at: string
   updated_at: string
 }
@@ -61,18 +56,58 @@ const VehicleName: React.FC<{ vehicleId: number }> = ({ vehicleId }) => {
   )
 }
 
-const MyBookings: React.FC = () => {
-  const { data: bookings, isLoading, error } = useGetMyBookingsQuery()
+const LoadingScreen: React.FC = () => {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="relative">
+            <Loader className="mx-auto text-blue-600 animate-spin" size={60} />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 blur-xl opacity-20 rounded-full"></div>
+          </div>
+          <p className="mt-6 text-gray-600 text-lg font-medium">Loading your bookings...</p>
+          <p className="mt-2 text-gray-500 text-sm">Please wait while we fetch your reservation details</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  console.log("🚀 ~ MyBookings ~ bookings:", bookings)
+const ErrorScreen: React.FC<{ onRetry: () => void }> = ({ onRetry }) => {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-md border border-gray-200">
+          <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
+            <AlertTriangle className="text-red-600" size={48} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Error Loading Bookings</h2>
+          <p className="text-gray-600 mb-6">We couldn't load your bookings. Please try again.</p>
+          <button 
+            onClick={onRetry}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const MyBookings: React.FC = () => {
+  const { data: bookings, isLoading, error, refetch } = useGetMyBookingsQuery()
   const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation()
 
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled'>('all')
   const [showCancelModal, setShowCancelModal] = useState<number | null>(null)
   const [cancellingId, setCancellingId] = useState<number | null>(null)
-  const {token} = useSelector((state:RootState)=>state.authSlice);
+  const { token } = useSelector((state: RootState) => state.authSlice)
   const navigate = useNavigate()
-  console.log("🚀 ~ MyBookings ~ token:", token)
+
+  console.log("🚀 ~ MyBookings ~ bookings:", bookings)
 
   const getStatusColor = (status: string) => {
     const s = status.toLowerCase()
@@ -101,11 +136,11 @@ const MyBookings: React.FC = () => {
 
   const handleCancelClick = (id: number) => setShowCancelModal(id)
 
-  const handleCancelCheckout=async(booking:any)=>{
+  const handleCancelCheckout = async (booking: any) => {
     console.log("🚀 ~ handleCancelCheckout ~ booking:", booking)
     
     try {
-       await stripePromise;
+      await stripePromise;
       const header = { 'Content-Type': 'application/json' };
       const checkoutResponse = await axios.post(`${apiDomain}payments/create-intent`, JSON.stringify(booking), {
         headers: { ...header, Authorization: `${token}`},
@@ -121,7 +156,6 @@ const MyBookings: React.FC = () => {
           description: 'Could not retrieve checkout URL. Please try again.',
         })
       }
-      // await stripe?.redirectToCheckout({ sessionId: session.id });
     } catch (error: any) {
       console.error('Error checking out booking:', error);
       toast.error('Checkout failed', {
@@ -150,52 +184,33 @@ const MyBookings: React.FC = () => {
     }
   }
 
+  const bookingData: BookingData[] = Array.isArray(bookings?.booking)
+    ? bookings.booking
+    : bookings?.booking
+    ? [bookings.booking] 
+    : []
 
-const bookingData: BookingData[] = Array.isArray(bookings?.booking)
-  ? bookings.booking
-  : bookings?.booking
-  ? [bookings.booking] 
-  : []
-
-console.log("📊 Raw bookings response:", bookings)
-console.log("📈 Processed bookingData:", bookingData)
-
-  
+  console.log("📊 Raw bookings response:", bookings)
+  console.log("📈 Processed bookingData:", bookingData)
 
   const filteredBookings = bookingData.filter(b =>
     filter === 'all' || b.booking_status.toLowerCase() === filter
   )
 
+  // Show loading screen
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Navbar />
-        <div className="text-center">
-          <Loader className="mx-auto text-blue-600 animate-spin" size={48} />
-          <p className="mt-4 text-gray-600 text-lg">Loading your bookings...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
+  // Show error screen
   if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Navbar />
-        <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-md">
-          <XCircle className="mx-auto text-red-500 mb-4" size={64} />
-          <h2 className="text-2xl font-bold mb-4">Error Loading Bookings</h2>
-          <button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl">
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorScreen onRetry={() => refetch()} />
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Navbar />
+      
       {/* Main content starts right under navbar – no extra padding */}
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         {/* Header */}
@@ -214,7 +229,7 @@ console.log("📈 Processed bookingData:", bookingData)
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">{bookingData?.length}</div>
+                <div className="text-3xl font-bold text-blue-600">{bookingData?.length || 0}</div>
                 <div className="text-gray-600">Total Bookings</div>
               </div>
             </div>
@@ -323,23 +338,22 @@ console.log("📈 Processed bookingData:", bookingData)
 
                         {['pending', 'approved'].includes(booking.booking_status.toLowerCase()) && (
                           <>
-                          <button
-                            onClick={() => handleCancelClick(booking.booking_id)}
-                            disabled={isCancelling}
-                            className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
+                            <button
+                              onClick={() => handleCancelClick(booking.booking_id)}
+                              disabled={isCancelling}
+                              className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
                             >
-                            <Trash2 size={18} />
-                            Cancel Booking
-                          </button>
-                          <button
-                            onClick={() => handleCancelCheckout(booking)}
-                            // disabled={isCancelling}
-                            className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
+                              <Trash2 size={18} />
+                              Cancel Booking
+                            </button>
+                            <button
+                              onClick={() => handleCancelCheckout(booking)}
+                              className="px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70"
                             >
-                            <Trash2 size={18} />
-                            Checkout
-                          </button>
-                            </>
+                              <CheckCircle size={18} />
+                              Complete Payment
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -389,7 +403,10 @@ console.log("📈 Processed bookingData:", bookingData)
                     className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-all disabled:opacity-70 flex items-center gap-2"
                   >
                     {cancellingId === showCancelModal ? (
-                      <>Cancelling...</>
+                      <>
+                        <Loader size={16} className="animate-spin" />
+                        Cancelling...
+                      </>
                     ) : (
                       <>Yes, Cancel Booking</>
                     )}
@@ -400,7 +417,7 @@ console.log("📈 Processed bookingData:", bookingData)
           </div>
         )}
       </div>
-    </>
+    </div>
   )
 }
 
